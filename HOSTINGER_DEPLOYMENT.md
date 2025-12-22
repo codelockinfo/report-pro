@@ -61,19 +61,22 @@ git pull origin main
 ### Step 4: Install Dependencies
 
 ```bash
-# Install backend dependencies
-npm install --production
+# Install backend dependencies (include devDependencies for building)
+npm install
 
-# Install frontend dependencies
+# Install frontend dependencies (required for building)
 cd frontend
-npm install --production
+npm install
 cd ..
 ```
+
+**Important:** Use `npm install` (not `--production`) because we need devDependencies like TypeScript and Vite to build the application.
 
 ### Step 5: Build the Application
 
 ```bash
 # Build both backend and frontend
+# The prebuild script will automatically install frontend deps if needed
 npm run build
 ```
 
