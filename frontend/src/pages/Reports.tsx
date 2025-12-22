@@ -7,13 +7,12 @@ import {
   TextField,
   ResourceList,
   ResourceItem,
-  Thumbnail,
-  Stack,
+  BlockStack,
   Filters,
   ChoiceList,
   EmptyState,
 } from '@shopify/polaris';
-import { SearchMinor, Plus } from '@shopify/polaris-icons';
+import { SearchMinor, CirclePlusOutline } from '@shopify/polaris-icons';
 import axios from 'axios';
 
 interface Report {
@@ -95,14 +94,14 @@ export default function ReportsPage() {
       title="Reports"
       primaryAction={{
         content: 'Create custom report',
-        icon: Plus,
+        icon: CirclePlusOutline,
         onAction: () => {
           // Handle create report
         },
       }}
     >
       <Card>
-        <Stack vertical spacing="loose">
+        <BlockStack gap="400">
           <TextField
             label="Search by report name..."
             value={searchValue}
@@ -112,8 +111,8 @@ export default function ReportsPage() {
           />
 
           {Object.entries(groupedReports).map(([category, categoryReports]) => (
-            <Card key={category} sectioned>
-              <Stack vertical spacing="tight">
+            <Card key={category}>
+              <BlockStack gap="200">
                 <Text variant="headingMd" as="h2">
                   {category}
                 </Text>
@@ -131,12 +130,13 @@ export default function ReportsPage() {
                     </ResourceItem>
                   )}
                 />
-              </Stack>
+              </BlockStack>
             </Card>
           ))}
 
           {reports.length === 0 && !loading && (
             <EmptyState
+              image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
               heading="No reports found"
               action={{
                 content: 'Create custom report',
@@ -146,7 +146,7 @@ export default function ReportsPage() {
               }}
             />
           )}
-        </Stack>
+        </BlockStack>
       </Card>
     </Page>
   );

@@ -6,7 +6,7 @@ import {
   Button,
   TextField,
   Select,
-  Stack,
+  BlockStack,
   DataTable,
   Layout,
 } from '@shopify/polaris';
@@ -47,7 +47,7 @@ export default function ExplorePage() {
       <Layout>
         <Layout.Section>
           <Card>
-            <Stack vertical spacing="loose">
+            <BlockStack gap="400">
               <Text variant="headingMd" as="h2">
                 Explore Data
               </Text>
@@ -65,9 +65,10 @@ export default function ExplorePage() {
                 onChange={setQuery}
                 multiline={4}
                 placeholder="SELECT * FROM orders WHERE shop_id = $shopId LIMIT 100"
+                autoComplete="off"
               />
 
-              <Button primary onClick={handleRunQuery}>
+              <Button variant="primary" onClick={handleRunQuery}>
                 Run Query
               </Button>
 
@@ -78,7 +79,7 @@ export default function ExplorePage() {
                   rows={results.map((row) => Object.values(row).map((val) => String(val)))}
                 />
               )}
-            </Stack>
+            </BlockStack>
           </Card>
         </Layout.Section>
       </Layout>

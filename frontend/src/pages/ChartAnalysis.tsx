@@ -3,15 +3,13 @@ import {
   Page,
   Card,
   Text,
-  Button,
-  Stack,
-  Select,
-  TextField,
+  BlockStack,
   Layout,
   ResourceList,
+  ResourceItem,
   EmptyState,
 } from '@shopify/polaris';
-import { Plus } from '@shopify/polaris-icons';
+import { CirclePlusOutline } from '@shopify/polaris-icons';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -133,16 +131,16 @@ export default function ChartAnalysisPage() {
       title="Chart Analysis"
       primaryAction={{
         content: 'Create Chart',
-        icon: Plus,
+        icon: CirclePlusOutline,
         onAction: () => {
           // Handle create chart
         },
       }}
     >
       <Layout>
-        <Layout.Section secondary>
+        <Layout.Section variant="oneThird">
           <Card>
-            <Stack vertical spacing="loose">
+            <BlockStack gap="400">
               <Text variant="headingMd" as="h2">
                 Charts
               </Text>
@@ -167,6 +165,7 @@ export default function ChartAnalysisPage() {
                 )}
                 emptyState={
                   <EmptyState
+                    image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
                     heading="No charts yet"
                     action={{
                       content: 'Create Chart',
@@ -177,21 +176,22 @@ export default function ChartAnalysisPage() {
                   />
                 }
               />
-            </Stack>
+            </BlockStack>
           </Card>
         </Layout.Section>
 
         <Layout.Section>
           <Card>
             {selectedChart ? (
-              <Stack vertical spacing="loose">
+              <BlockStack gap="400">
                 <Text variant="headingMd" as="h2">
                   {selectedChart.name}
                 </Text>
                 {renderChart()}
-              </Stack>
+              </BlockStack>
             ) : (
               <EmptyState
+                image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
                 heading="Select a chart to view"
                 action={{
                   content: 'Create Chart',

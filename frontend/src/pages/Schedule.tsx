@@ -7,7 +7,7 @@ import {
   TextField,
   DataTable,
   Badge,
-  Stack,
+  BlockStack,
   Filters,
   ChoiceList,
   Banner,
@@ -103,7 +103,7 @@ export default function SchedulePage() {
     formatFrequency(schedule),
     formatRecipients(schedule),
     formatNextRun(schedule.next_run_at),
-    <Badge key={schedule.id} status={schedule.enabled ? 'success' : 'info'}>
+    <Badge key={schedule.id} tone={schedule.enabled ? 'success' : 'info'}>
       {schedule.enabled ? 'Enabled' : 'Disabled'}
     </Badge>,
     <Button key={`action-${schedule.id}`} size="slim">
@@ -122,10 +122,10 @@ export default function SchedulePage() {
         },
       }}
     >
-      <Stack vertical spacing="loose">
+      <BlockStack gap="400">
         {usage && (
           <Banner>
-            <Text>
+            <Text as="p">
               Estimated monthly scheduled runs: <strong>{usage.estimated_monthly_runs} of 1,000</strong>
               {' '}
               <a href="#" onClick={(e) => e.preventDefault()}>
@@ -136,7 +136,7 @@ export default function SchedulePage() {
         )}
 
         <Card>
-          <Stack vertical spacing="loose">
+          <BlockStack gap="400">
             <TextField
               label="Search report, email..."
               value={searchValue}
@@ -144,7 +144,7 @@ export default function SchedulePage() {
               autoComplete="off"
             />
 
-            <Stack>
+            <BlockStack gap="200">
               <ChoiceList
                 title="Status"
                 choices={[
@@ -165,16 +165,16 @@ export default function SchedulePage() {
                 selected={typeFilter}
                 onChange={setTypeFilter}
               />
-            </Stack>
+            </BlockStack>
 
             <DataTable
               columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text']}
               headings={['Report', 'When', 'To', 'Next Run', 'Status', 'Actions']}
               rows={rows}
             />
-          </Stack>
+          </BlockStack>
         </Card>
-      </Stack>
+      </BlockStack>
     </Page>
   );
 }

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Page, Banner } from '@shopify/polaris';
+import { Banner } from '@shopify/polaris';
 
 interface LayoutProps {
   children: ReactNode;
@@ -10,7 +10,7 @@ export default function Layout({ children }: LayoutProps) {
     <>
       <Banner
         title="Better Reports is making improvements!"
-        status="info"
+        tone="info"
       >
         <p>
           The <strong>Order lines</strong> table has been renamed to <strong>Agreement lines</strong>.

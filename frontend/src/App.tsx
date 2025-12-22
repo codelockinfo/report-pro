@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Frame, Navigation } from '@shopify/polaris';
-import { HomeMajor, ExploreMajor, CalendarMajor, SettingsMajor, AnalyticsMajor } from '@shopify/polaris-icons';
+import { HomeMajor, SearchMajor, CalendarMajor, SettingsMajor, AnalyticsMajor } from '@shopify/polaris-icons';
 import ReportsPage from './pages/Reports';
 import ExplorePage from './pages/Explore';
 import SchedulePage from './pages/Schedule';
@@ -21,7 +21,7 @@ function App() {
           {
             label: 'Explore',
             url: '/explore',
-            icon: ExploreMajor,
+            icon: SearchMajor,
           },
           {
             label: 'Schedule',

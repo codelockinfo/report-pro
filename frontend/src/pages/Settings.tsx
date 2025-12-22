@@ -5,7 +5,7 @@ import {
   Text,
   Button,
   Select,
-  Stack,
+  BlockStack,
   Layout,
   Tabs,
 } from '@shopify/polaris';
@@ -92,8 +92,8 @@ export default function SettingsPage() {
           <Card>
             <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab}>
               {selectedTab === 0 && (
-                <Card.Section>
-                  <Stack vertical spacing="loose">
+                <Card>
+                  <BlockStack gap="400">
                     <Text variant="headingMd" as="h2">
                       General settings
                     </Text>
@@ -118,23 +118,23 @@ export default function SettingsPage() {
                       For formatting dates and numbers
                     </Text>
 
-                    <Button primary onClick={handleSave} loading={saving}>
+                    <Button variant="primary" onClick={handleSave} loading={saving}>
                       Save
                     </Button>
-                  </Stack>
-                </Card.Section>
+                  </BlockStack>
+                </Card>
               )}
 
               {selectedTab === 1 && (
-                <Card.Section>
-                  <Text>Schedule settings coming soon...</Text>
-                </Card.Section>
+                <Card>
+                  <Text as="p">Schedule settings coming soon...</Text>
+                </Card>
               )}
 
               {selectedTab === 2 && (
-                <Card.Section>
-                  <Text>Integrations settings coming soon...</Text>
-                </Card.Section>
+                <Card>
+                  <Text as="p">Integrations settings coming soon...</Text>
+                </Card>
               )}
             </Tabs>
           </Card>
