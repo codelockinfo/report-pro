@@ -1,48 +1,40 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { AppProvider } from '@shopify/polaris';
-import { Provider as AppBridgeProvider } from '@shopify/app-bridge-react';
 import '@shopify/polaris/build/esm/styles.css';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 
-// Get shop and host from URL parameters (Shopify embedded app)
+// Initialize App Bridge if we're in an embedded app context
 const urlParams = new URLSearchParams(window.location.search);
-const shop = urlParams.get('shop') || '';
 const host = urlParams.get('host') || '';
+const apiKey = (window as any).__SHOPIFY_API_KEY__ || '';
 
-// Get API key from environment or window (injected by server)
-const apiKey = 
-  import.meta.env.VITE_SHOPIFY_API_KEY || 
-  (window as any).__SHOPIFY_API_KEY__ ||
-  '';
-
-// App Bridge configuration
-// Only initialize if we have both API key and host (embedded app)
-const config = apiKey && host ? {
-  apiKey: apiKey,
-  host: host,
-  forceRedirect: true,
-} : null;
-
-// Render app with or without App Bridge (for embedded vs standalone)
-const appContent = config ? (
-  <AppBridgeProvider config={config}>
-    <AppProvider i18n={{}}>
-      <App />
-    </AppProvider>
-  </AppBridgeProvider>
-) : (
-  <AppProvider i18n={{}}>
-    <App />
-  </AppProvider>
-);
+// Initialize App Bridge for embedded apps
+if (apiKey && host && typeof window !== 'undefined') {
+  try {
+    // Dynamically import App Bridge and initialize
+    import('@shopify/app-bridge').then((appBridge) => {
+      appBridge.default({
+        apiKey: apiKey,
+        host: host,
+        forceRedirect: true,
+      });
+    }).catch((err) => {
+      console.warn('Failed to initialize App Bridge:', err);
+    });
+  } catch (err) {
+    console.warn('App Bridge initialization skipped:', err);
+  }
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      {appContent}
+      <AppProvider i18n={{}}>
+        <App />
+      </AppProvider>
     </BrowserRouter>
   </React.StrictMode>
 );
