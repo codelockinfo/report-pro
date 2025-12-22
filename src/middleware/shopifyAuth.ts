@@ -7,7 +7,7 @@ export interface AuthenticatedRequest extends Request {
     shop_domain: string;
     store_name?: string;
     access_token: string;
-    scope: string;
+    scope?: string;
   };
 }
 
@@ -43,7 +43,7 @@ export async function attachShopData(req: AuthenticatedRequest, res: Response, n
       shop_domain: shop.shop_domain,
       store_name: shop.store_name,
       access_token: shop.access_token,
-      scope: shop.scope,
+      scope: shop.scope || '',
     };
 
     // Also set in headers for convenience
