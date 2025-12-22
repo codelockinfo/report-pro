@@ -37,10 +37,13 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   // Allow Shopify to embed the app in iframe
   // Note: frame-ancestors in CSP replaces X-Frame-Options
+  // Allow all Shopify admin domains
   res.setHeader(
     'Content-Security-Policy',
-    "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com;"
+    "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com https://*.admin.shopify.com;"
   );
+  // Also set X-Frame-Options for older browsers (but CSP takes precedence)
+  res.removeHeader('X-Frame-Options');
   next();
 });
 
@@ -49,30 +52,81 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Diagnostic endpoint for embedded app debugging
+app.get('/api/diagnostic', (req, res) => {
+  res.json({
+    status: 'ok',
+    embedded: true,
+    apiKey: process.env.SHOPIFY_API_KEY ? 'Set' : 'Missing',
+    appUrl: process.env.SHOPIFY_APP_URL || 'Not set',
+    request: {
+      path: req.path,
+      query: req.query,
+      headers: {
+        'user-agent': req.headers['user-agent'],
+        'referer': req.headers['referer'],
+        'origin': req.headers['origin'],
+      }
+    }
+  });
+});
+
 // Setup API routes
 setupRoutes(app, shopify);
 
 // Serve static files from frontend/dist in production
+// IMPORTANT: This must come AFTER API routes but handle all non-API requests
 if (process.env.NODE_ENV === 'production') {
   const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
-  app.use(express.static(frontendDistPath));
+  
+  // Serve static assets first (CSS, JS, images, etc.)
+  app.use(express.static(frontendDistPath, {
+    maxAge: '1y', // Cache static assets
+    etag: true,
+  }));
   
   // Serve index.html for all non-API routes (SPA routing)
-  // Inject Shopify API key for App Bridge
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
+  // This handles embedded app requests from Shopify admin
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    
+    // Log request for debugging
+    console.log(`[Frontend Request] ${req.method} ${req.path}`, {
+      query: req.query,
+      headers: {
+        'user-agent': req.headers['user-agent'],
+        'referer': req.headers['referer'],
+      }
+    });
+    
+    try {
       const indexPath = path.join(frontendDistPath, 'index.html');
       const fs = require('fs');
+      
+      if (!fs.existsSync(indexPath)) {
+        console.error(`[Error] index.html not found at: ${indexPath}`);
+        return res.status(500).send('Frontend not built. Please run: npm run build');
+      }
+      
       let html = fs.readFileSync(indexPath, 'utf8');
       
       // Inject Shopify API key as a script tag before closing </head>
       const apiKey = process.env.SHOPIFY_API_KEY || '';
       const scriptTag = `<script>window.__SHOPIFY_API_KEY__ = '${apiKey}';</script>`;
       
-      // Insert before closing </head> tag
-      html = html.replace('</head>', `${scriptTag}</head>`);
+      // Insert before closing </head> tag (only if not already present)
+      if (!html.includes('__SHOPIFY_API_KEY__')) {
+        html = html.replace('</head>', `${scriptTag}</head>`);
+      }
       
+      res.setHeader('Content-Type', 'text/html');
       res.send(html);
+    } catch (error) {
+      console.error('[Error] Failed to serve index.html:', error);
+      res.status(500).send('Failed to load application');
     }
   });
 }
