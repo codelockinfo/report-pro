@@ -9,7 +9,7 @@ import {
   ResourceItem,
   EmptyState,
 } from '@shopify/polaris';
-import { CirclePlusOutline } from '@shopify/polaris-icons';
+import { CirclePlusOutlineMinor } from '@shopify/polaris-icons';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -48,7 +48,7 @@ export default function ChartAnalysisPage() {
   const [charts, setCharts] = useState<Chart[]>([]);
   const [selectedChart, setSelectedChart] = useState<Chart | null>(null);
   const [chartData, setChartData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     fetchCharts();
@@ -131,7 +131,7 @@ export default function ChartAnalysisPage() {
       title="Chart Analysis"
       primaryAction={{
         content: 'Create Chart',
-        icon: CirclePlusOutline,
+        icon: CirclePlusOutlineMinor,
         onAction: () => {
           // Handle create chart
         },

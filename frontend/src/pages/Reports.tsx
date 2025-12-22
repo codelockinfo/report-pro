@@ -3,7 +3,6 @@ import {
   Page,
   Card,
   Text,
-  Button,
   TextField,
   ResourceList,
   ResourceItem,
@@ -12,7 +11,7 @@ import {
   ChoiceList,
   EmptyState,
 } from '@shopify/polaris';
-import { SearchMinor, CirclePlusOutline } from '@shopify/polaris-icons';
+import { SearchMinor, CirclePlusOutlineMinor } from '@shopify/polaris-icons';
 import axios from 'axios';
 
 interface Report {
@@ -60,25 +59,26 @@ export default function ReportsPage() {
     }
   };
 
-  const filterControl = (
-    <Filters
-      queryValue={searchValue}
-      filters={[]}
-      onQueryChange={setSearchValue}
-      onQueryClear={() => setSearchValue('')}
-      onClearAll={() => {
-        setSearchValue('');
-        setSelectedCategory([]);
-      }}
-    >
-      <ChoiceList
-        title="Category"
-        choices={categories.map((cat) => ({ label: cat, value: cat }))}
-        selected={selectedCategory}
-        onChange={setSelectedCategory}
-      />
-    </Filters>
-  );
+  // Filter control available for future use
+  // const filterControl = (
+  //   <Filters
+  //     queryValue={searchValue}
+  //     filters={[]}
+  //     onQueryChange={setSearchValue}
+  //     onQueryClear={() => setSearchValue('')}
+  //     onClearAll={() => {
+  //       setSearchValue('');
+  //       setSelectedCategory([]);
+  //     }}
+  //   >
+  //     <ChoiceList
+  //       title="Category"
+  //       choices={categories.map((cat) => ({ label: cat, value: cat }))}
+  //       selected={selectedCategory}
+  //       onChange={setSelectedCategory}
+  //     />
+  //   </Filters>
+  // );
 
   const groupedReports = reports.reduce((acc, report) => {
     const category = report.category || 'Other';
@@ -94,7 +94,7 @@ export default function ReportsPage() {
       title="Reports"
       primaryAction={{
         content: 'Create custom report',
-        icon: CirclePlusOutline,
+        icon: CirclePlusOutlineMinor,
         onAction: () => {
           // Handle create report
         },

@@ -8,7 +8,6 @@ import {
   DataTable,
   Badge,
   BlockStack,
-  Filters,
   ChoiceList,
   Banner,
 } from '@shopify/polaris';
@@ -29,7 +28,7 @@ interface Schedule {
 
 export default function SchedulePage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [searchValue, setSearchValue] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>(['all']);
   const [typeFilter, setTypeFilter] = useState<string[]>(['all']);

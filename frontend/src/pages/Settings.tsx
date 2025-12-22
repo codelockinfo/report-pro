@@ -23,7 +23,7 @@ export default function SettingsPage() {
     locale: 'en-US',
     timezone: 'UTC',
   });
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedTab, setSelectedTab] = useState(0);
 
