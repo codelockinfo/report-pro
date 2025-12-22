@@ -7,7 +7,6 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "nodemon --exec ts-node src/server.ts",
     "dev:client": "cd frontend && npm run dev",
-    "dev:tunnel": "node scripts/start-with-ngrok.js",
     "build": "npm run build:server && npm run build:client",
     "build:server": "tsc",
     "build:client": "cd frontend && npm run build",
@@ -51,8 +50,7 @@
     "concurrently": "^8.2.2",
     "eslint": "^8.54.0",
     "jest": "^29.7.0",
-    "@types/jest": "^29.5.8",
-    "ngrok": "^5.0.0"
+    "@types/jest": "^29.5.8"
   }
 }
 
