@@ -26,9 +26,23 @@ const shopify = shopifyApi({
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Content Security Policy for Shopify embedded apps
+app.use((req, res, next) => {
+  // Allow Shopify to embed the app in iframe
+  // Note: frame-ancestors in CSP replaces X-Frame-Options
+  res.setHeader(
+    'Content-Security-Policy',
+    "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com;"
+  );
+  next();
+});
 
 // Health check
 app.get('/health', (req, res) => {
@@ -44,9 +58,21 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(frontendDistPath));
   
   // Serve index.html for all non-API routes (SPA routing)
+  // Inject Shopify API key for App Bridge
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(frontendDistPath, 'index.html'));
+      const indexPath = path.join(frontendDistPath, 'index.html');
+      const fs = require('fs');
+      let html = fs.readFileSync(indexPath, 'utf8');
+      
+      // Inject Shopify API key as a script tag before closing </head>
+      const apiKey = process.env.SHOPIFY_API_KEY || '';
+      const scriptTag = `<script>window.__SHOPIFY_API_KEY__ = '${apiKey}';</script>`;
+      
+      // Insert before closing </head> tag
+      html = html.replace('</head>', `${scriptTag}</head>`);
+      
+      res.send(html);
     }
   });
 }
