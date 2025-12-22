@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { shopifyApi } from '@shopify/shopify-api';
-import { saveShop } from '../services/shopService';
+import { saveShop, getShopByDomain } from '../services/shopService';
 
 // This will be initialized in server.ts and passed here
 let shopify: ReturnType<typeof shopifyApi>;
@@ -33,6 +33,8 @@ export const authenticateShopify = async (req: Request, res: Response) => {
       shop: shopDomain,
       callbackPath: '/api/auth/shopify/callback',
       isOnline: false, // Offline access for background jobs
+      rawRequest: req,
+      rawResponse: res,
     });
 
     res.redirect(authRoute);
@@ -56,22 +58,10 @@ export const callback = async (req: Request, res: Response) => {
 
     const shopDomain = shop as string;
 
-    // Validate HMAC
-    const isValid = await shopify.auth.validateCallback({
-      code: code as string,
-      shop: shopDomain,
-      timestamp: timestamp as string,
-      hmac: hmac as string,
-    });
-
-    if (!isValid) {
-      return res.status(401).json({ error: 'Invalid OAuth callback' });
-    }
-
-    // Exchange code for access token
+    // Exchange code for access token (callback validates HMAC automatically)
     const callbackResponse = await shopify.auth.callback({
-      code: code as string,
-      shop: shopDomain,
+      rawRequest: req,
+      rawResponse: res,
     });
 
     if (!callbackResponse || !callbackResponse.session || !callbackResponse.session.accessToken) {
@@ -88,19 +78,16 @@ export const callback = async (req: Request, res: Response) => {
       shopifySession.accessToken = accessToken;
 
       const client = new shopify.clients.Graphql({ session: shopifySession });
-      const shopInfoResponse = await client.request({
-        data: {
-          query: `{
-            shop {
-              name
-              email
-              myshopifyDomain
-            }
-          }`
-        },
-      });
+      const query = `{
+        shop {
+          name
+          email
+          myshopifyDomain
+        }
+      }`;
+      const shopInfoResponse = await client.request(query);
 
-      const shopInfo = (shopInfoResponse.body as any)?.data?.shop;
+      const shopInfo = (shopInfoResponse as any)?.data?.shop;
       storeName = shopInfo?.name || shopDomain;
     } catch (error) {
       console.warn('Failed to fetch shop info, using domain as name:', error);

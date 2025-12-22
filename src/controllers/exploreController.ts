@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/shopifyAuth';
 import { exploreDataFromDB, getTableSchemaFromDB, runSafeQuery } from '../services/exploreService';
 
@@ -16,7 +16,7 @@ export const exploreData = async (req: AuthenticatedRequest, res: Response) => {
 
 export const getTableSchema = async (req: Request, res: Response) => {
   try {
-    const { table } = req.params;
+    const table = (req.params as { table: string }).table;
     const schema = await getTableSchemaFromDB(table);
     res.json(schema);
   } catch (error) {
