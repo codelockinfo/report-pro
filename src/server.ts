@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 import '@shopify/shopify-api/adapters/node';
 
@@ -34,8 +35,21 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Setup routes
+// Setup API routes
 setupRoutes(app, shopify);
+
+// Serve static files from frontend/dist in production
+if (process.env.NODE_ENV === 'production') {
+  const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+  app.use(express.static(frontendDistPath));
+  
+  // Serve index.html for all non-API routes (SPA routing)
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(frontendDistPath, 'index.html'));
+    }
+  });
+}
 
 // Initialize services
 async function startServer() {
