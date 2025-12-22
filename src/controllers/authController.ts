@@ -1,0 +1,158 @@
+import { Request, Response } from 'express';
+import { shopifyApi } from '@shopify/shopify-api';
+import { saveShop } from '../services/shopService';
+
+// This will be initialized in server.ts and passed here
+let shopify: ReturnType<typeof shopifyApi>;
+
+export function initializeAuth(shopifyInstance: ReturnType<typeof shopifyApi>) {
+  shopify = shopifyInstance;
+}
+
+/**
+ * Initiate Shopify OAuth flow
+ * GET /api/auth/shopify?shop=your-store.myshopify.com
+ */
+export const authenticateShopify = async (req: Request, res: Response) => {
+  try {
+    const shop = req.query.shop as string;
+
+    if (!shop) {
+      return res.status(400).json({ error: 'Shop parameter is required' });
+    }
+
+    // Validate shop domain format
+    if (!shop.endsWith('.myshopify.com') && !shop.includes('.')) {
+      return res.status(400).json({ error: 'Invalid shop domain format' });
+    }
+
+    const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
+
+    // Create OAuth begin URL
+    const authRoute = await shopify.auth.begin({
+      shop: shopDomain,
+      callbackPath: '/api/auth/shopify/callback',
+      isOnline: false, // Offline access for background jobs
+    });
+
+    res.redirect(authRoute);
+  } catch (error) {
+    console.error('OAuth initiation error:', error);
+    res.status(500).json({ error: 'Failed to initiate OAuth flow' });
+  }
+};
+
+/**
+ * Handle Shopify OAuth callback
+ * GET /api/auth/shopify/callback?code=...&shop=...&hmac=...&timestamp=...
+ */
+export const callback = async (req: Request, res: Response) => {
+  try {
+    const { code, shop, hmac, timestamp } = req.query;
+
+    if (!code || !shop || !hmac) {
+      return res.status(400).json({ error: 'Missing required OAuth parameters' });
+    }
+
+    const shopDomain = shop as string;
+
+    // Validate HMAC
+    const isValid = await shopify.auth.validateCallback({
+      code: code as string,
+      shop: shopDomain,
+      timestamp: timestamp as string,
+      hmac: hmac as string,
+    });
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid OAuth callback' });
+    }
+
+    // Exchange code for access token
+    const callbackResponse = await shopify.auth.callback({
+      code: code as string,
+      shop: shopDomain,
+    });
+
+    if (!callbackResponse || !callbackResponse.session || !callbackResponse.session.accessToken) {
+      return res.status(500).json({ error: 'Failed to obtain access token' });
+    }
+
+    const accessToken = callbackResponse.session.accessToken;
+    const grantedScopes = callbackResponse.session.scope || process.env.SHOPIFY_SCOPES || '';
+
+    // Get shop information using the access token
+    let storeName = shopDomain;
+    try {
+      const shopifySession = shopify.session.customAppSession(shopDomain);
+      shopifySession.accessToken = accessToken;
+
+      const client = new shopify.clients.Graphql({ session: shopifySession });
+      const shopInfoResponse = await client.request({
+        data: {
+          query: `{
+            shop {
+              name
+              email
+              myshopifyDomain
+            }
+          }`
+        },
+      });
+
+      const shopInfo = (shopInfoResponse.body as any)?.data?.shop;
+      storeName = shopInfo?.name || shopDomain;
+    } catch (error) {
+      console.warn('Failed to fetch shop info, using domain as name:', error);
+      // Continue with shopDomain as store name
+    }
+
+    // Save shop data to database
+    await saveShop({
+      shop_domain: shopDomain,
+      store_name: storeName,
+      access_token: accessToken,
+      scope: grantedScopes,
+    });
+
+    // Redirect to app (embedded app)
+    const redirectUrl = shopify.config.isEmbeddedApp
+      ? `https://${shopDomain}/admin/apps/${process.env.SHOPIFY_API_KEY}`
+      : '/app';
+
+    res.redirect(redirectUrl);
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    res.status(500).json({ error: 'Failed to complete OAuth flow' });
+  }
+};
+
+/**
+ * Verify shop authentication
+ */
+export const verifyToken = async (req: Request, res: Response) => {
+  try {
+    const shopDomain = req.query.shop as string || req.headers['x-shop-domain'] as string;
+
+    if (!shopDomain) {
+      return res.status(400).json({ error: 'Shop domain is required' });
+    }
+
+    const shop = await getShopByDomain(shopDomain);
+    
+    if (!shop || !shop.access_token) {
+      return res.status(401).json({ valid: false, error: 'Shop not authenticated' });
+    }
+
+    res.json({ 
+      valid: true, 
+      shop: {
+        domain: shop.shop_domain,
+        name: shop.store_name,
+      }
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(500).json({ error: 'Failed to verify token' });
+  }
+};
