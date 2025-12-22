@@ -7,8 +7,6 @@ import {
   ResourceList,
   ResourceItem,
   BlockStack,
-  Filters,
-  ChoiceList,
   EmptyState,
 } from '@shopify/polaris';
 import { SearchMinor, CirclePlusOutlineMinor } from '@shopify/polaris-icons';
@@ -26,29 +24,32 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchValue, setSearchValue] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string[]>([]);
+  // Category filter available for future use
+  // const [selectedCategory, setSelectedCategory] = useState<string[]>([]);
 
-  const categories = [
-    'Custom reports',
-    'Customers',
-    'Products',
-    'Product variants',
-    'Agreement lines',
-    'Orders',
-    'Transactions',
-    'Inventory levels',
-  ];
+  // Categories available for future filter functionality
+  // const categories = [
+  //   'Custom reports',
+  //   'Customers',
+  //   'Products',
+  //   'Product variants',
+  //   'Agreement lines',
+  //   'Orders',
+  //   'Transactions',
+  //   'Inventory levels',
+  // ];
 
   useEffect(() => {
     fetchReports();
-  }, [searchValue, selectedCategory]);
+  }, [searchValue]);
 
   const fetchReports = async () => {
     try {
       setLoading(true);
       const params: any = {};
       if (searchValue) params.search = searchValue;
-      if (selectedCategory.length > 0) params.category = selectedCategory[0];
+      // Category filter available for future use
+      // if (selectedCategory.length > 0) params.category = selectedCategory[0];
 
       const response = await axios.get('/api/reports', { params });
       setReports(response.data);

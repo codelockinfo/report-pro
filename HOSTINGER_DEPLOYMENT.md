@@ -129,7 +129,7 @@ SMTP_USER=your_email@your-domain.com
 SMTP_PASS=your_email_password
 
 # App Settings
-APP_NAME=Better Reports
+APP_NAME=ReportPro - Easy Report
 APP_URL=https://your-domain.com
 ```
 

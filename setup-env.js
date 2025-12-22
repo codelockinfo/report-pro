@@ -33,7 +33,7 @@ SMTP_USER=your_email@gmail.com
 SMTP_PASS=your_app_password
 
 # App Settings
-APP_NAME=Better Reports
+APP_NAME=ReportPro - Easy Report
 APP_URL=http://localhost:3000
 `;
 
