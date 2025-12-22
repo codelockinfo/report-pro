@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { shopifyApi } from '@shopify/shopify-api';
-import { saveShop, getShopByDomain } from '../services/shopService';
+import { saveShop, getShopByDomain, registerShop } from '../services/shopService';
 
 // This will be initialized in server.ts and passed here
 let shopify: ReturnType<typeof shopifyApi>;
@@ -141,5 +141,53 @@ export const verifyToken = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Token verification error:', error);
     res.status(500).json({ error: 'Failed to verify token' });
+  }
+};
+
+/**
+ * Register shop data from frontend
+ * POST /api/auth/register-shop
+ * Body: { shop_domain: string, store_name?: string }
+ */
+export const registerShopData = async (req: Request, res: Response) => {
+  try {
+    const { shop_domain, store_name } = req.body;
+
+    if (!shop_domain) {
+      return res.status(400).json({ error: 'Shop domain is required' });
+    }
+
+    // Validate and normalize shop domain
+    let shopDomain = shop_domain.trim();
+    if (!shopDomain.endsWith('.myshopify.com') && !shopDomain.includes('.')) {
+      shopDomain = `${shopDomain}.myshopify.com`;
+    }
+
+    // Extract store name from domain if not provided
+    let finalStoreName = store_name;
+    if (!finalStoreName) {
+      // Extract store name from domain (e.g., "mystore.myshopify.com" -> "mystore")
+      const domainParts = shopDomain.split('.');
+      finalStoreName = domainParts[0] || shopDomain;
+    }
+
+    // Register shop in database
+    const shop = await registerShop({
+      shop_domain: shopDomain,
+      store_name: finalStoreName,
+    });
+
+    res.json({
+      success: true,
+      shop: {
+        id: shop.id,
+        domain: shop.shop_domain,
+        name: shop.store_name,
+        registered: true,
+      },
+    });
+  } catch (error) {
+    console.error('Shop registration error:', error);
+    res.status(500).json({ error: 'Failed to register shop data' });
   }
 };
