@@ -86,10 +86,10 @@ app.use('/', createInstallRouter());
 // Setup API routes
 setupRoutes(app, shopify);
 
-// Serve static files from frontend/dist in production
+// Serve static files from web/dist in production
 // IMPORTANT: This must come AFTER API routes but handle all non-API requests
 if (process.env.NODE_ENV === 'production') {
-  const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+  const frontendDistPath = path.join(__dirname, '..', '..', 'web', 'dist');
   
   // Serve static assets first (CSS, JS, images, etc.)
   app.use(express.static(frontendDistPath, {

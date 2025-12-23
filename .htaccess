@@ -11,14 +11,14 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/(.*)$ http://localhost:3000/api/$1 [P,L]
 
 # For frontend static files (CSS, JS, images), let Apache serve them directly
-# These are served from frontend/dist/ directory
+# These are served from web/dist/ directory
 
 # All other requests go to index.html (SPA routing)
 # But first check if it's an API request
 RewriteCond %{REQUEST_URI} !^/api
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ /frontend/dist/index.html [L]
+RewriteRule ^(.*)$ /web/dist/index.html [L]
 
 # Enable proxy module (required for [P] flag)
 <IfModule mod_proxy.c>
