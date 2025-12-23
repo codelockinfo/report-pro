@@ -9,12 +9,14 @@ import ChartAnalysisPage from './pages/ChartAnalysis';
 
 /**
  * Main App Component
- * Uses Polaris Frame with Navigation for the sidebar menu
- * App Bridge Provider (in main.tsx) handles the embedded app integration
+ * Uses Polaris Frame with Navigation for sidebar menu
+ * When App Bridge is initialized (in main.tsx), the Frame navigation
+ * will appear in Shopify Admin's sidebar automatically
  */
 function App() {
   const location = useLocation();
 
+  // Navigation menu items - these appear in Shopify Admin sidebar when embedded
   const navigationMarkup = (
     <Navigation location={location.pathname}>
       <Navigation.Section
@@ -64,4 +66,3 @@ function App() {
 }
 
 export default App;
-

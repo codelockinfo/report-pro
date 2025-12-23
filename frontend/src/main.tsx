@@ -15,6 +15,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const host = urlParams.get('host') || '';
 
 // Initialize App Bridge for embedded apps
+// This enables the Polaris Frame navigation to appear in Shopify Admin sidebar
 if (apiKey && host && typeof window !== 'undefined') {
   try {
     createApp({
