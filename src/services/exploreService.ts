@@ -20,7 +20,9 @@ export async function exploreDataFromDB(shopId: string, table: string, filters: 
       params.push(value);
     }
   }
+ 
 
+  
   query += ' LIMIT ?';
   params.push(limit);
 
