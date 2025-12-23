@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 import '@shopify/shopify-api/adapters/node';
 
@@ -89,7 +90,12 @@ setupRoutes(app, shopify);
 // Serve static files from web/dist in production
 // IMPORTANT: This must come AFTER API routes but handle all non-API requests
 if (process.env.NODE_ENV === 'production') {
-  const frontendDistPath = path.join(__dirname, '..', '..', 'web', 'dist');
+  // Handle both development (server/dist) and deployment (dist/server) scenarios
+  // When running from dist/server/server.js, look for ../web/dist
+  // When running from server/dist/server.js (dev build), look for ../../web/dist
+  const frontendDistPath = fs.existsSync(path.join(__dirname, '..', 'web', 'dist'))
+    ? path.join(__dirname, '..', 'web', 'dist')  // dist/server -> dist/web/dist
+    : path.join(__dirname, '..', '..', 'web', 'dist');  // server/dist -> web/dist
   
   // Serve static assets first (CSS, JS, images, etc.)
   app.use(express.static(frontendDistPath, {
@@ -116,7 +122,6 @@ if (process.env.NODE_ENV === 'production') {
     
     try {
       const indexPath = path.join(frontendDistPath, 'index.html');
-      const fs = require('fs');
       
       if (!fs.existsSync(indexPath)) {
         console.error(`[Error] index.html not found at: ${indexPath}`);
