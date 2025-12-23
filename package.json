@@ -8,10 +8,11 @@
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd web && npm run dev",
     "build": "npm run build:server && npm run build:client",
-    "build:server": "cd server && npm run build",
-    "build:client": "cd web && npm run build",
+    "build:server": "cd server && npm install && npm run build",
+    "build:client": "cd web && npm install && npm run build",
     "start": "cd server && npm start",
     "install:all": "npm install && cd server && npm install && cd ../web && npm install",
+    "prebuild": "npm run install:all",
     "setup:env": "node setup-env.js",
     "test": "cd server && npm test"
   },
