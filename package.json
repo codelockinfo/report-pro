@@ -22,6 +22,10 @@
   "keywords": ["shopify", "reports", "analytics", "dashboard"],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "dependencies": {
     "@shopify/shopify-api": "^9.0.0",
     "@shopify/shopify-app-express": "^3.0.0",
