@@ -33,12 +33,14 @@ export function createEmbeddedAppAuth(shopify: ReturnType<typeof shopifyApi>) {
       
       if (!shopData || !shopData.access_token) {
         // Shop not installed - redirect to OAuth
+        console.log('[EMBEDDED_AUTH] Shop not installed or missing token, redirecting:', shopDomain);
         const authUrl = `/api/auth/shopify?shop=${encodeURIComponent(shopDomain)}`;
         return res.redirect(authUrl);
       }
 
       // Shop is installed, allow request to proceed
       // The frontend will handle the embedded app initialization
+      console.log('[EMBEDDED_AUTH] Shop is installed, allowing request:', shopDomain);
       next();
     } catch (error) {
       console.error('Embedded app auth error:', error);

@@ -97,16 +97,26 @@ export const callback = async (req: Request, res: Response) => {
 
     // Store session in session storage (required for embedded app authentication)
     if (callbackResponse.session) {
-      await sessionStorage.storeSession(callbackResponse.session);
+      console.log('[OAUTH_CALLBACK] Storing session for shop:', shopDomain);
+      const stored = await sessionStorage.storeSession(callbackResponse.session);
+      if (!stored) {
+        console.error('[OAUTH_CALLBACK] Failed to store session for shop:', shopDomain);
+      } else {
+        console.log('[OAUTH_CALLBACK] Session stored successfully for shop:', shopDomain);
+      }
+    } else {
+      console.error('[OAUTH_CALLBACK] No session in callback response for shop:', shopDomain);
     }
 
     // Save shop data to database
+    console.log('[OAUTH_CALLBACK] Saving shop data to database:', shopDomain);
     await saveShop({
       shop_domain: shopDomain,
       store_name: storeName,
       access_token: accessToken,
       scope: grantedScopes,
     });
+    console.log('[OAUTH_CALLBACK] Shop data saved successfully:', shopDomain);
 
     // Redirect to app (embedded app)
     const redirectUrl = shopify.config.isEmbeddedApp

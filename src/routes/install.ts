@@ -49,10 +49,11 @@ export function createInstallRouter() {
 
       if (shopData && shopData.access_token) {
         // Shop is installed - let request continue to frontend serving
-        // Don't redirect here, let the normal request flow handle it
-        // This allows the frontend to load properly
+        // The embedded app auth middleware and frontend serving will handle it
+        console.log('[INSTALL] Shop is installed, allowing request to continue:', shopDomain);
         return next();
       } else {
+        console.log('[INSTALL] Shop not installed, redirecting to OAuth:', shopDomain);
         // Shop is not installed - redirect to OAuth
         const oauthUrl = `/api/auth/shopify?shop=${encodeURIComponent(shopDomain)}`;
         
