@@ -6,9 +6,11 @@ import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 import '@shopify/shopify-api/adapters/node';
 
 import { setupRoutes } from './routes';
+import { createInstallRouter } from './routes/install';
 import { initializeDatabase } from './database/connection';
 import { initializeRedis } from './services/redis';
 import { initializeQueue } from './services/queue';
+import { createEmbeddedAppAuth } from './middleware/embeddedAppAuth';
 
 dotenv.config();
 
@@ -16,6 +18,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Initialize Shopify API
+// Note: For embedded apps, session verification happens automatically
+// when using shopify.auth.begin and shopify.auth.callback
 const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY!,
   apiSecretKey: process.env.SHOPIFY_API_SECRET!,
@@ -70,6 +74,14 @@ app.get('/api/diagnostic', (req, res) => {
     }
   });
 });
+
+// Embedded app authentication middleware
+// This handles session verification for embedded app requests
+app.use(createEmbeddedAppAuth(shopify));
+
+// Installation route (handles initial app access and OAuth redirect)
+// Must come after embedded app auth to avoid conflicts
+app.use('/', createInstallRouter());
 
 // Setup API routes
 setupRoutes(app, shopify);

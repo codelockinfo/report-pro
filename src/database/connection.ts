@@ -132,5 +132,24 @@ async function runMigrations() {
       INDEX idx_charts_shop_id (shop_id)
     )
   `);
+
+  // Shopify sessions table for embedded app authentication
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS shopify_sessions (
+      id VARCHAR(255) PRIMARY KEY,
+      shop VARCHAR(255) NOT NULL,
+      state VARCHAR(255),
+      is_online TINYINT(1) DEFAULT 0,
+      scope VARCHAR(255),
+      expires DATETIME,
+      access_token TEXT,
+      user_id VARCHAR(255),
+      session_data JSON,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_shop (shop),
+      INDEX idx_expires (expires)
+    )
+  `);
 }
 

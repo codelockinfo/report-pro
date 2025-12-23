@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { shopifyApi } from '@shopify/shopify-api';
 import { saveShop, getShopByDomain, registerShop } from '../services/shopService';
+import { sessionStorage } from '../services/sessionStorage';
 
 // This will be initialized in server.ts and passed here
 let shopify: ReturnType<typeof shopifyApi>;
@@ -92,6 +93,11 @@ export const callback = async (req: Request, res: Response) => {
     } catch (error) {
       console.warn('Failed to fetch shop info, using domain as name:', error);
       // Continue with shopDomain as store name
+    }
+
+    // Store session in session storage (required for embedded app authentication)
+    if (callbackResponse.session) {
+      await sessionStorage.storeSession(callbackResponse.session);
     }
 
     // Save shop data to database
