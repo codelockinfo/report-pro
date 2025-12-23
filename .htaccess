@@ -1,0 +1,28 @@
+# Apache Configuration for Node.js App on Hostinger
+# Place this file in public_html directory
+
+RewriteEngine On
+
+# Don't rewrite files that exist
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Proxy API requests to Node.js server on port 3000
+RewriteRule ^api/(.*)$ http://localhost:3000/api/$1 [P,L]
+
+# For frontend static files (CSS, JS, images), let Apache serve them directly
+# These are served from frontend/dist/ directory
+
+# All other requests go to index.html (SPA routing)
+# But first check if it's an API request
+RewriteCond %{REQUEST_URI} !^/api
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ /frontend/dist/index.html [L]
+
+# Enable proxy module (required for [P] flag)
+<IfModule mod_proxy.c>
+    ProxyPreserveHost On
+    ProxyPassReverse /api http://localhost:3000/api
+</IfModule>
+
