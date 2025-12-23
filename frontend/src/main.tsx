@@ -5,27 +5,25 @@ import '@shopify/polaris/build/esm/styles.css';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
+import createApp from '@shopify/app-bridge';
 
-// Initialize App Bridge if we're in an embedded app context
+// Get API key from window (injected by server)
+const apiKey = (window as any).__SHOPIFY_API_KEY__ || '';
+
+// Get host parameter from URL (required for embedded apps)
 const urlParams = new URLSearchParams(window.location.search);
 const host = urlParams.get('host') || '';
-const apiKey = (window as any).__SHOPIFY_API_KEY__ || '';
 
 // Initialize App Bridge for embedded apps
 if (apiKey && host && typeof window !== 'undefined') {
   try {
-    // Dynamically import App Bridge and initialize
-    import('@shopify/app-bridge').then((appBridge) => {
-      appBridge.default({
-        apiKey: apiKey,
-        host: host,
-        forceRedirect: true,
-      });
-    }).catch((err) => {
-      console.warn('Failed to initialize App Bridge:', err);
+    createApp({
+      apiKey: apiKey,
+      host: host,
+      forceRedirect: true,
     });
   } catch (err) {
-    console.warn('App Bridge initialization skipped:', err);
+    console.warn('App Bridge initialization error:', err);
   }
 }
 
