@@ -91,11 +91,19 @@ setupRoutes(app, shopify);
 // IMPORTANT: This must come AFTER API routes but handle all non-API requests
 if (process.env.NODE_ENV === 'production') {
   // Handle both development (server/dist) and deployment (dist/server) scenarios
-  // When running from dist/server/server.js, look for ../web/dist
-  // When running from server/dist/server.js (dev build), look for ../../web/dist
-  const frontendDistPath = fs.existsSync(path.join(__dirname, '..', 'web', 'dist'))
-    ? path.join(__dirname, '..', 'web', 'dist')  // dist/server -> dist/web/dist
-    : path.join(__dirname, '..', '..', 'web', 'dist');  // server/dist -> web/dist
+  // When running from dist/server/server.js, frontend is at ../web/ (not ../web/dist)
+  // When running from server/dist/server.js, frontend is at ../../web/dist
+  const possiblePaths = [
+    path.join(__dirname, '..', 'web'),  // dist/server -> dist/web (deployment)
+    path.join(__dirname, '..', 'web', 'dist'),  // dist/server -> dist/web/dist (fallback)
+    path.join(__dirname, '..', '..', 'web', 'dist'),  // server/dist -> web/dist (development)
+  ];
+  
+  let frontendDistPath = possiblePaths.find(p => fs.existsSync(p));
+  if (!frontendDistPath) {
+    frontendDistPath = possiblePaths[0]; // Default to first path
+    console.warn(`[Warning] Frontend path not found, using default: ${frontendDistPath}`);
+  }
   
   // Serve static assets first (CSS, JS, images, etc.)
   app.use(express.static(frontendDistPath, {

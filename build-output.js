@@ -43,6 +43,19 @@ function copyRecursiveSync(src, dest) {
 try {
   console.log('📦 Copying build outputs to root dist/ folder...');
 
+  // Save .htaccess and README before deleting dist (if they exist)
+  const distHtaccessPath = path.join(outputDir, '.htaccess');
+  const distReadmePath = path.join(outputDir, 'README_DEPLOYMENT.md');
+  let savedHtaccess = null;
+  let savedReadme = null;
+  
+  if (fs.existsSync(distHtaccessPath)) {
+    savedHtaccess = fs.readFileSync(distHtaccessPath, 'utf8');
+  }
+  if (fs.existsSync(distReadmePath)) {
+    savedReadme = fs.readFileSync(distReadmePath, 'utf8');
+  }
+
   // Remove old dist if exists
   if (fs.existsSync(outputDir)) {
     fs.rmSync(outputDir, { recursive: true, force: true });
@@ -83,9 +96,61 @@ try {
     JSON.stringify(distPackageJson, null, 2)
   );
 
+  // Save .htaccess and README before deleting dist (if they exist)
+  const distHtaccessPath = path.join(outputDir, '.htaccess');
+  const distReadmePath = path.join(outputDir, 'README_DEPLOYMENT.md');
+  let savedHtaccess = null;
+  let savedReadme = null;
+  
+  if (fs.existsSync(distHtaccessPath)) {
+    savedHtaccess = fs.readFileSync(distHtaccessPath, 'utf8');
+  }
+  if (fs.existsSync(distReadmePath)) {
+    savedReadme = fs.readFileSync(distReadmePath, 'utf8');
+  }
+
+  // Restore or create .htaccess for Hostinger deployment
+  const htaccessDest = path.join(outputDir, '.htaccess');
+  if (savedHtaccess) {
+    console.log('  → Restoring .htaccess');
+    fs.writeFileSync(htaccessDest, savedHtaccess);
+  } else {
+    // Try to copy from root .htaccess or create default
+    const rootHtaccess = path.join(rootDir, '.htaccess');
+    if (fs.existsSync(rootHtaccess)) {
+      console.log('  → Copying .htaccess from root');
+      fs.copyFileSync(rootHtaccess, htaccessDest);
+    } else {
+      // Create default .htaccess for Hostinger
+      console.log('  → Creating default .htaccess for Hostinger');
+      const defaultHtaccess = `# Apache Configuration for Node.js Shopify App on Hostinger
+RewriteEngine On
+
+# Proxy all requests to Node.js server (running on port 3000)
+# Change 3000 to your Node.js port if different
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
+
+# Enable proxy module
+<IfModule mod_proxy.c>
+    ProxyPreserveHost On
+    ProxyPassReverse / http://localhost:3000/
+</IfModule>
+`;
+      fs.writeFileSync(htaccessDest, defaultHtaccess);
+    }
+  }
+  
+  // Restore README_DEPLOYMENT.md if it existed
+  if (savedReadme) {
+    fs.writeFileSync(path.join(outputDir, 'README_DEPLOYMENT.md'), savedReadme);
+  }
+
   console.log('✅ Build outputs copied to dist/ folder');
   console.log(`   - Server: dist/server/`);
   console.log(`   - Web: dist/web/`);
+  console.log(`   - .htaccess: dist/.htaccess`);
 } catch (error) {
   console.error('❌ Error copying build outputs:', error);
   process.exit(1);
