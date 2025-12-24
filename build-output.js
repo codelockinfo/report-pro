@@ -96,19 +96,6 @@ try {
     JSON.stringify(distPackageJson, null, 2)
   );
 
-  // Save .htaccess and README before deleting dist (if they exist)
-  const distHtaccessPath = path.join(outputDir, '.htaccess');
-  const distReadmePath = path.join(outputDir, 'README_DEPLOYMENT.md');
-  let savedHtaccess = null;
-  let savedReadme = null;
-  
-  if (fs.existsSync(distHtaccessPath)) {
-    savedHtaccess = fs.readFileSync(distHtaccessPath, 'utf8');
-  }
-  if (fs.existsSync(distReadmePath)) {
-    savedReadme = fs.readFileSync(distReadmePath, 'utf8');
-  }
-
   // Restore or create .htaccess for Hostinger deployment
   const htaccessDest = path.join(outputDir, '.htaccess');
   if (savedHtaccess) {
