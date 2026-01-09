@@ -1,13 +1,20 @@
 # Apache Configuration for Node.js App on Hostinger
 # Place this file in public_html directory
 
+# IMPORTANT: This configuration requires mod_proxy and mod_proxy_http to be enabled
+# If you get 403 errors, contact Hostinger support to enable these modules
+
 RewriteEngine On
 
-# Enable proxy module (required for [P] flag)
+# Enable proxy modules (required for [P] flag)
 <IfModule mod_proxy.c>
     ProxyPreserveHost On
     ProxyPassReverse / http://localhost:3000/
 </IfModule>
+
+# IMPORTANT: Check if Node.js server is running
+# If you get 503 errors, the Node.js server is not running on port 3000
+# Start it with: pm2 start server/server.js --name "shopify-app"
 
 # Serve static assets directly from web/dist/assets/ (CSS, JS, images)
 # This improves performance by avoiding Node.js for static files
@@ -29,4 +36,9 @@ RewriteRule ^(.*)$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
+
+# Error handling - if proxy fails, show helpful message
+ErrorDocument 503 "Node.js server is not running. Please start it with: pm2 start server/server.js"
+ErrorDocument 502 "Node.js server connection failed. Check if server is running on port 3000."
+ErrorDocument 403 "Proxy access denied. Contact Hostinger support to enable mod_proxy and mod_proxy_http modules."
 
