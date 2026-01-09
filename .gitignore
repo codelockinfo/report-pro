@@ -1,0 +1,18 @@
+/vendor/
+/node_modules/
+/storage/exports/*
+!/storage/exports/.gitkeep
+.env
+*.log
+.DS_Store
+.idea/
+*.swp
+*.swo
+*~
+
+# Security: Config files with credentials
+# Note: config/config.php contains API credentials - ensure it's not committed to public repos
+# For production, use environment variables instead
+/storage/oauth.log
+/storage/*.log
+

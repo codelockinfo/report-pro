@@ -1,0 +1,83 @@
+═══════════════════════════════════════════════════════════════
+  SHOPIFY PARTNER DASHBOARD - QUICK CONFIGURATION REFERENCE
+═══════════════════════════════════════════════════════════════
+
+📍 URLs SECTION
+───────────────────────────────────────────────────────────────
+App URL:
+  https://reportpro.codelocksolutions.com
+
+Embed app in Shopify admin:
+  ✅ CHECK THIS BOX
+
+Preferences URL (optional):
+  https://reportpro.codelocksolutions.com/settings
+  (or leave blank)
+
+
+🔗 REDIRECT URLs
+───────────────────────────────────────────────────────────────
+Enter as COMMA-SEPARATED (no line breaks, no spaces):
+  https://reportpro.codelocksolutions.com/oauth_callback.php,https://reportpro.codelocksolutions.com/auth/callback
+
+
+🔐 ACCESS SECTION
+───────────────────────────────────────────────────────────────
+Required Scopes (comma-separated):
+  read_orders,read_products,read_customers,read_inventory,read_transactions,read_analytics
+
+Optional scopes:
+  (Leave empty)
+
+Use legacy install flow:
+  ❌ UNCHECKED
+
+
+📡 WEBHOOKS API VERSION
+───────────────────────────────────────────────────────────────
+Select: 2026-01 (or latest available)
+
+
+🛍️ POS SECTION
+───────────────────────────────────────────────────────────────
+Embed app in Shopify POS:
+  ❌ UNCHECKED (unless needed)
+
+
+🔌 APP PROXY SECTION
+───────────────────────────────────────────────────────────────
+Subpath prefix: apps
+Subpath: (leave empty)
+Proxy URL: (leave empty)
+
+
+═══════════════════════════════════════════════════════════════
+  AFTER CREATION - GET API CREDENTIALS
+═══════════════════════════════════════════════════════════════
+
+1. Go to: App setup → Client credentials
+2. Copy API key and API secret
+3. Update config/config.php with credentials
+
+
+═══════════════════════════════════════════════════════════════
+  WEBHOOKS TO ADD (After app creation)
+═══════════════════════════════════════════════════════════════
+
+Go to: App setup → Webhooks
+
+1. App uninstalled
+   URL: https://reportpro.codelocksolutions.com/webhooks/app/uninstalled
+
+2. Customer data request
+   URL: https://reportpro.codelocksolutions.com/webhooks/customers/data_request
+
+3. Customer redaction
+   URL: https://reportpro.codelocksolutions.com/webhooks/customers/redact
+
+4. Shop redaction
+   URL: https://reportpro.codelocksolutions.com/webhooks/shop/redact
+
+
+═══════════════════════════════════════════════════════════════
+
