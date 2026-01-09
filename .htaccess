@@ -3,26 +3,30 @@
 
 RewriteEngine On
 
-# Don't rewrite files that exist
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-
-# Proxy API requests to Node.js server on port 3000
-RewriteRule ^api/(.*)$ http://localhost:3000/api/$1 [P,L]
-
-# For frontend static files (CSS, JS, images), let Apache serve them directly
-# These are served from web/dist/ directory
-
-# All other requests go to index.html (SPA routing)
-# But first check if it's an API request
-RewriteCond %{REQUEST_URI} !^/api
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ /web/dist/index.html [L]
-
 # Enable proxy module (required for [P] flag)
 <IfModule mod_proxy.c>
     ProxyPreserveHost On
-    ProxyPassReverse /api http://localhost:3000/api
+    ProxyPassReverse / http://localhost:3000/
 </IfModule>
+
+# Serve static assets directly from web/dist/assets/ (CSS, JS, images)
+# This improves performance by avoiding Node.js for static files
+RewriteCond %{REQUEST_URI} ^/assets/
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^assets/(.*)$ /web/dist/assets/$1 [L]
+
+# Don't rewrite files that physically exist (static assets)
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteCond %{REQUEST_URI} \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ [NC]
+RewriteRule ^(.*)$ - [L]
+
+# Proxy ALL other requests to Node.js server (port 3000)
+# This includes:
+# - API requests (/api/*)
+# - Embedded app requests (/?shop=...&hmac=...)
+# - Frontend routes (SPA routing)
+# Node.js will handle authentication and serve the appropriate response
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
 
