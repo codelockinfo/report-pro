@@ -9,9 +9,11 @@ return [
     'app_url' => getenv('APP_URL') ?: 'https://reportpro.codelocksolutions.com',
     
     // Shopify App Configuration
+    // IMPORTANT: Set these as environment variables for security
+    // Do not commit credentials to version control
     'shopify' => [
-        'api_key' => getenv('SHOPIFY_API_KEY') ?: 'a53fcb46618232fcc1aca1bf585e700d',
-        'api_secret' => getenv('SHOPIFY_API_SECRET') ?: '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',
+        'api_key' => getenv('SHOPIFY_API_KEY') ?: '',
+        'api_secret' => getenv('SHOPIFY_API_SECRET') ?: '',
         'scopes' => 'read_orders,read_products,read_customers,read_inventory,read_transactions,read_analytics',
         'redirect_uri' => getenv('SHOPIFY_REDIRECT_URI') ?: 'https://reportpro.codelocksolutions.com/auth/callback',
         'api_version' => '2024-01',

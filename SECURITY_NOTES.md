@@ -2,12 +2,7 @@
 
 ## ⚠️ Important Security Information
 
-Your Shopify API credentials are now stored in `config/config.php`.
-
-### Current Configuration
-
-- **API Key**: `a53fcb46618232fcc1aca1bf585e700d`
-- **API Secret**: `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`
+**IMPORTANT**: API credentials must be set as environment variables. Never commit credentials to version control.
 
 ## 🛡️ Security Best Practices
 
@@ -37,9 +32,9 @@ This ensures:
 
 **Option A: Use Environment Variables (Recommended)**
 ```bash
-# Set environment variables
-export SHOPIFY_API_KEY="a53fcb46618232fcc1aca1bf585e700d"
-export SHOPIFY_API_SECRET="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"
+# Set environment variables (replace with your actual credentials)
+export SHOPIFY_API_KEY="your_api_key_here"
+export SHOPIFY_API_SECRET="your_api_secret_here"
 ```
 
 Then update `config/config.php` to use:
@@ -51,8 +46,9 @@ Then update `config/config.php` to use:
 **Option B: Create .env File**
 ```bash
 # Create .env file (already in .gitignore)
-SHOPIFY_API_KEY=a53fcb46618232fcc1aca1bf585e700d
-SHOPIFY_API_SECRET=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
+# Replace with your actual credentials
+SHOPIFY_API_KEY=your_api_key_here
+SHOPIFY_API_SECRET=your_api_secret_here
 ```
 
 **Option C: Separate Config File**
@@ -117,8 +113,21 @@ If you suspect a security breach:
 
 ## 📝 Current Status
 
-✅ Credentials configured in `config/config.php`
-✅ `.gitignore` includes sensitive files
-⚠️ Ensure config file is not in public Git repository
+✅ Config file uses environment variables (secure)
+✅ `.gitignore` includes sensitive files (.env)
+✅ No credentials in version control
+⚠️ Set environment variables on your server
 ⚠️ Set proper file permissions before production
+
+## 🚀 Quick Setup
+
+1. Create `.env` file in project root:
+   ```bash
+   SHOPIFY_API_KEY=your_api_key_here
+   SHOPIFY_API_SECRET=your_api_secret_here
+   ```
+
+2. Load environment variables in your application (or use PHP's getenv())
+
+3. Never commit `.env` file to Git
 

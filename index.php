@@ -15,6 +15,28 @@ define('CONFIG_PATH', ROOT_PATH . '/config');
 define('VIEWS_PATH', ROOT_PATH . '/views');
 define('PUBLIC_PATH', ROOT_PATH . '/public');
 
+// Load .env file if it exists
+if (file_exists(ROOT_PATH . '/.env')) {
+    $lines = file(ROOT_PATH . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if (empty($line) || strpos($line, '#') === 0) {
+            continue; // Skip empty lines and comments
+        }
+        if (strpos($line, '=') !== false) {
+            list($name, $value) = explode('=', $line, 2);
+            $name = trim($name);
+            $value = trim($value);
+            // Remove quotes if present
+            $value = trim($value, '"\'');
+            if (!empty($name)) {
+                putenv($name . '=' . $value);
+                $_ENV[$name] = $value;
+            }
+        }
+    }
+}
+
 // Load autoloader
 require_once ROOT_PATH . '/vendor/autoload.php';
 
