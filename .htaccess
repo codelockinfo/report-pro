@@ -1,20 +1,12 @@
 # Apache Configuration for Node.js App on Hostinger
-# Place this file in public_html directory
-
-# IMPORTANT: This configuration requires mod_proxy and mod_proxy_http to be enabled
-# If you get 403 errors, contact Hostinger support to enable these modules
+# 
+# IMPORTANT: Since Hostinger doesn't allow Apache proxy, use Hostinger's Node.js Manager instead!
+# See HOSTINGER_NODEJS_MANAGER_SETUP.md for complete instructions.
+#
+# This .htaccess only serves static files for better performance.
+# Node.js Manager handles all app requests directly (no proxy needed).
 
 RewriteEngine On
-
-# Enable proxy modules (required for [P] flag)
-<IfModule mod_proxy.c>
-    ProxyPreserveHost On
-    ProxyPassReverse / http://localhost:3000/
-</IfModule>
-
-# IMPORTANT: Check if Node.js server is running
-# If you get 503 errors, the Node.js server is not running on port 3000
-# Start it with: pm2 start server/server.js --name "shopify-app"
 
 # Serve static assets directly from web/dist/assets/ (CSS, JS, images)
 # This improves performance by avoiding Node.js for static files
@@ -22,23 +14,24 @@ RewriteCond %{REQUEST_URI} ^/assets/
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^assets/(.*)$ /web/dist/assets/$1 [L]
 
-# Don't rewrite files that physically exist (static assets)
+# Serve other static files directly (CSS, JS, images, fonts, etc.)
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteCond %{REQUEST_URI} \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ [NC]
 RewriteRule ^(.*)$ - [L]
 
-# Proxy ALL other requests to Node.js server (port 3000)
-# This includes:
-# - API requests (/api/*)
-# - Embedded app requests (/?shop=...&hmac=...)
-# - Frontend routes (SPA routing)
-# Node.js will handle authentication and serve the appropriate response
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
-
-# Error handling - if proxy fails, show helpful message
-ErrorDocument 503 "Node.js server is not running. Please start it with: pm2 start server/server.js"
-ErrorDocument 502 "Node.js server connection failed. Check if server is running on port 3000."
-ErrorDocument 403 "Proxy access denied. Contact Hostinger support to enable mod_proxy and mod_proxy_http modules."
+# All other requests are handled by Hostinger's Node.js Manager
+# No proxy configuration needed - Node.js Manager exposes the app directly
+#
+# If you see 403 errors:
+# 1. Use Hostinger's Node.js Manager (recommended) - see HOSTINGER_NODEJS_MANAGER_SETUP.md
+# 2. Or contact Hostinger support to enable mod_proxy and mod_proxy_http
+#
+# If you must use proxy (not recommended on Hostinger), uncomment below:
+# <IfModule mod_proxy.c>
+#     ProxyPreserveHost On
+#     ProxyPassReverse / http://localhost:3000/
+#     RewriteCond %{REQUEST_FILENAME} !-f
+#     RewriteCond %{REQUEST_FILENAME} !-d
+#     RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
+# </IfModule>
 
