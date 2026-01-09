@@ -12,6 +12,7 @@ import { initializeDatabase } from './database/connection';
 import { initializeRedis } from './services/redis';
 import { initializeQueue } from './services/queue';
 import { createEmbeddedAppAuth } from './middleware/embeddedAppAuth';
+import { sessionStorage } from './services/sessionStorage';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ const PORT = process.env.PORT || 3000;
 // Initialize Shopify API
 // Note: For embedded apps, session verification happens automatically
 // when using shopify.auth.begin and shopify.auth.callback
+// Session storage is required for embedded app authentication
 const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY!,
   apiSecretKey: process.env.SHOPIFY_API_SECRET!,
@@ -28,6 +30,7 @@ const shopify = shopifyApi({
   hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, '') || 'localhost:3000',
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
+  sessionStorage: sessionStorage,
 });
 
 // Middleware
