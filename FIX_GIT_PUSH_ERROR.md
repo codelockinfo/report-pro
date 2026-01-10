@@ -34,8 +34,8 @@ cp .env.example .env
 Then edit `.env` and add your credentials:
 
 ```bash
-SHOPIFY_API_KEY=a53fcb46618232fcc1aca1bf585e700d
-SHOPIFY_API_SECRET=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
+SHOPIFY_API_KEY=your_api_key_here
+SHOPIFY_API_SECRET=your_api_secret_here
 ```
 
 ### Step 2: Verify .env is in .gitignore
@@ -82,8 +82,8 @@ After setting up `.env` file:
 ## 🔒 Security Reminder
 
 **Your credentials:**
-- API Key: `a53fcb46618232fcc1aca1bf585e700d`
-- API Secret: `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`
+- Get these from Shopify Partner Dashboard → App setup → Client credentials
+- Store them in `.env` file (not in Git)
 
 **Store these in:**
 - ✅ `.env` file (not in Git)

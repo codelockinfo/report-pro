@@ -15,8 +15,8 @@
 
 2. **Edit `.env` file** and add your credentials:
    ```bash
-   SHOPIFY_API_KEY=a53fcb46618232fcc1aca1bf585e700d
-   SHOPIFY_API_SECRET=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
+   SHOPIFY_API_KEY=your_api_key_here
+   SHOPIFY_API_SECRET=your_api_secret_here
    ```
 
 3. **Load environment variables** in your PHP application:
@@ -40,14 +40,14 @@ Set environment variables on your server:
 
 **Apache (.htaccess or httpd.conf):**
 ```apache
-SetEnv SHOPIFY_API_KEY "a53fcb46618232fcc1aca1bf585e700d"
-SetEnv SHOPIFY_API_SECRET "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"
+SetEnv SHOPIFY_API_KEY "your_api_key_here"
+SetEnv SHOPIFY_API_SECRET "your_api_secret_here"
 ```
 
 **Nginx:**
 ```nginx
-fastcgi_param SHOPIFY_API_KEY "a53fcb46618232fcc1aca1bf585e700d";
-fastcgi_param SHOPIFY_API_SECRET "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";
+fastcgi_param SHOPIFY_API_KEY "your_api_key_here";
+fastcgi_param SHOPIFY_API_SECRET "your_api_secret_here";
 ```
 
 **cPanel/Shared Hosting:**
@@ -59,16 +59,18 @@ fastcgi_param SHOPIFY_API_SECRET "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";
 If you're not using Git or it's a private repository, you can temporarily set them directly in `config/config.php`:
 
 ```php
-'api_key' => 'a53fcb46618232fcc1aca1bf585e700d',
-'api_secret' => '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',
+'api_key' => 'your_api_key_here',
+'api_secret' => 'your_api_secret_here',
 ```
 
 **⚠️ Warning**: This will be blocked by GitHub push protection if you try to commit.
 
-## 🔧 Your Current Credentials
+## 🔧 Your Credentials
 
-- **API Key**: `a53fcb46618232fcc1aca1bf585e700d`
-- **API Secret**: `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`
+Get these from Shopify Partner Dashboard:
+- Go to App setup → Client credentials
+- Copy API key and API secret
+- Store in `.env` file (never commit to Git)
 
 ## ✅ Verification
 
