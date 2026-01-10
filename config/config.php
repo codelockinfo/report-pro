@@ -17,6 +17,9 @@ return [
         'scopes' => 'read_orders,read_products,read_customers,read_inventory,read_transactions,read_analytics',
         'redirect_uri' => getenv('SHOPIFY_REDIRECT_URI') ?: 'https://reportpro.codelocksolutions.com/auth/callback',
         'api_version' => '2024-01',
+        'app_type' => 'public', // Public app - can be installed by any merchant
+        'embedded' => true, // Embedded app - loads in Shopify admin
+        'oauth_version' => '2.0', // OAuth 2.0 for public apps
     ],
     
     // Database Configuration

@@ -1,4 +1,11 @@
-# Shopify Partner Dashboard - App Configuration Guide
+# Shopify Partner Dashboard - Public App Configuration Guide
+
+## ⚠️ IMPORTANT: This is a PUBLIC APP
+
+When creating the app in Shopify Partner Dashboard:
+- **Choose "Public app"** (NOT Custom app)
+- Public apps can be installed by any merchant
+- Public apps can be listed in Shopify App Store
 
 ## Complete Form Fill-Out Instructions
 
@@ -66,7 +73,7 @@ read_orders,read_products,read_customers,read_inventory,read_transactions,read_a
 *Leave empty* (unless you need additional permissions later)
 
 ### Use legacy install flow
-❌ **LEAVE UNCHECKED** (Use modern OAuth 2.0 flow)
+❌ **LEAVE UNCHECKED** (Public apps MUST use OAuth 2.0, not legacy)
 
 ---
 

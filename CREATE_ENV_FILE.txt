@@ -1,0 +1,27 @@
+# INSTRUCTIONS: Create .env file in project root with this content
+
+# Copy everything below this line into a new file named ".env" in your project root
+# Location: C:\xampp\htdocs\report-pro\.env
+
+# Environment Variables Configuration
+# This file is in .gitignore and will NOT be committed to Git
+# DO NOT commit this file to version control
+
+# Application Configuration
+APP_URL=https://reportpro.codelocksolutions.com
+APP_SECRET_KEY=change-this-secret-key-in-production
+APP_ENCRYPTION_KEY=change-this-encryption-key-in-production
+
+# Database Configuration
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=u402017191_report_pro
+DB_USER=root
+DB_PASSWORD=
+
+# Shopify App Configuration
+# Get these from Shopify Partner Dashboard → App setup → Client credentials
+SHOPIFY_API_KEY=a53fcb46618232fcc1aca1bf585e700d
+SHOPIFY_API_SECRET=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
+SHOPIFY_REDIRECT_URI=https://reportpro.codelocksolutions.com/auth/callback
+
