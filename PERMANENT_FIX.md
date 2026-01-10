@@ -64,8 +64,8 @@ git push origin main --force
 
 2. Create `secrets.txt`:
    ```
-   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==>REMOVED
-   a53fcb46618232fcc1aca1bf585e700d==>REMOVED
+   shpss_YOUR_SECRET_HERE==>REMOVED
+   YOUR_API_KEY_HERE==>REMOVED
    ```
 
 3. Run BFG:

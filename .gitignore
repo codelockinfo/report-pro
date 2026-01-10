@@ -10,9 +10,9 @@
 *.swo
 *~
 
-# Security: Config files with credentials
-# Note: config/config.php contains API credentials - ensure it's not committed to public repos
-# For production, use environment variables instead
+# Security: Environment variables and sensitive files
+# config/config.php is safe - it uses environment variables only
+# Never commit .env file - it contains actual credentials
 /storage/oauth.log
 /storage/*.log
 
