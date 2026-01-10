@@ -11,8 +11,63 @@ class Controller
     public function __construct()
     {
         $this->view = new View();
-        $this->db = Database::getInstance();
+        try {
+            $this->db = Database::getInstance();
+        } catch (\Exception $e) {
+            // Database connection failed - show error page
+            $this->showDatabaseError($e->getMessage());
+        }
         $this->config = require CONFIG_PATH . '/config.php';
+    }
+
+    protected function showDatabaseError($message)
+    {
+        http_response_code(500);
+        $title = 'Database Connection Error';
+        ob_start();
+        ?>
+        <div class="Polaris-Page">
+            <div class="Polaris-Page__Content">
+                <div class="Polaris-Card">
+                    <div class="Polaris-Card__Section">
+                        <div class="Polaris-EmptyState">
+                            <div class="Polaris-EmptyState__Section">
+                                <div class="Polaris-EmptyState__DetailsContainer">
+                                    <p class="Polaris-EmptyState__Text" style="color: #d72c0d; font-weight: 600;">
+                                        Database connection failed
+                                    </p>
+                                    <p class="Polaris-TextStyle--variationSubdued" style="margin-top: 1rem;">
+                                        <?= htmlspecialchars($message) ?>
+                                    </p>
+                                    <div class="Polaris-EmptyState__Actions" style="margin-top: 1.5rem;">
+                                        <p class="Polaris-TextStyle--variationSubdued">
+                                            Please check your database configuration in the <code>.env</code> file on your server.
+                                        </p>
+                                        <p class="Polaris-TextStyle--variationSubdued" style="margin-top: 0.5rem;">
+                                            See <code>PRODUCTION_SETUP.md</code> for setup instructions.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php
+        $content = ob_get_clean();
+        
+        // Try to load layout, but if it fails, just output content
+        $layoutFile = VIEWS_PATH . '/layouts/app.php';
+        if (file_exists($layoutFile)) {
+            $config = require CONFIG_PATH . '/config.php';
+            $shop = ['shop_domain' => $_GET['shop'] ?? ''];
+            extract(['title' => $title, 'content' => $content, 'config' => $config, 'shop' => $shop]);
+            include $layoutFile;
+        } else {
+            echo "<!DOCTYPE html><html><head><title>{$title}</title></head><body>{$content}</body></html>";
+        }
+        exit;
     }
 
     protected function json($data, $statusCode = 200)

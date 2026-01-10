@@ -28,13 +28,12 @@ define('APP_PATH', ROOT_PATH . '/app');
 require_once CONFIG_PATH . '/config.php';
 $config = require CONFIG_PATH . '/config.php';
 
-// Load database connection
-require_once CONFIG_PATH . '/database.php';
-global $pdo;
-
-// Load models
+// Load core classes
+require_once APP_PATH . '/Core/Database.php';
+require_once APP_PATH . '/Core/Model.php';
 require_once APP_PATH . '/Models/Shop.php';
 use App\Models\Shop;
+use App\Core\Database;
 
 // Start session
 if (session_status() === PHP_SESSION_NONE) {

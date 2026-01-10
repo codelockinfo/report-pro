@@ -39,9 +39,20 @@ class Router
                     $controllerClass = "App\\Controllers\\{$controllerName}";
                     
                     if (class_exists($controllerClass)) {
-                        $controllerInstance = new $controllerClass();
-                        if (method_exists($controllerInstance, $method)) {
-                            return call_user_func_array([$controllerInstance, $method], $this->params);
+                        try {
+                            $controllerInstance = new $controllerClass();
+                            if (method_exists($controllerInstance, $method)) {
+                                return call_user_func_array([$controllerInstance, $method], $this->params);
+                            }
+                        } catch (\Exception $e) {
+                            // Handle database and other exceptions
+                            if (strpos($e->getMessage(), 'Database connection') !== false) {
+                                // Database error - let controller handle it
+                                throw $e;
+                            }
+                            http_response_code(500);
+                            echo "Error: " . htmlspecialchars($e->getMessage());
+                            return;
                         }
                     }
                 }

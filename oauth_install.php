@@ -32,9 +32,7 @@ define('CONFIG_PATH', ROOT_PATH . '/config');
 require_once CONFIG_PATH . '/config.php';
 $config = require CONFIG_PATH . '/config.php';
 
-// Load database connection
-require_once CONFIG_PATH . '/database.php';
-global $pdo;
+// Database connection not needed for installation (only for callback)
 
 // Start session
 if (session_status() === PHP_SESSION_NONE) {

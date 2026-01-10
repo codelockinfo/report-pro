@@ -42,7 +42,8 @@ require_once ROOT_PATH . '/vendor/autoload.php';
 
 // Load configuration
 require_once CONFIG_PATH . '/config.php';
-require_once CONFIG_PATH . '/database.php';
+// Database connection is loaded lazily via Database class
+// require_once CONFIG_PATH . '/database.php'; // Not needed - Database class handles connections
 
 // Load core classes
 require_once APP_PATH . '/Core/Router.php';
