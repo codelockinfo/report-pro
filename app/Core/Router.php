@@ -28,6 +28,12 @@ class Router
     {
         $method = $_SERVER['REQUEST_METHOD'];
         $url = $_GET['url'] ?? '/';
+        
+        // Ensure URL starts with / for route matching
+        if (!empty($url) && $url[0] !== '/') {
+            $url = '/' . $url;
+        }
+        
         $url = rtrim($url, '/');
         $url = $url ?: '/';
 

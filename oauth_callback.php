@@ -24,7 +24,29 @@ define('ROOT_PATH', __DIR__);
 define('CONFIG_PATH', ROOT_PATH . '/config');
 define('APP_PATH', ROOT_PATH . '/app');
 
-// Load configuration
+// Load .env file if it exists (MUST be loaded before config.php)
+if (file_exists(ROOT_PATH . '/.env')) {
+    $lines = file(ROOT_PATH . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if (empty($line) || strpos($line, '#') === 0) {
+            continue; // Skip empty lines and comments
+        }
+        if (strpos($line, '=') !== false) {
+            list($name, $value) = explode('=', $line, 2);
+            $name = trim($name);
+            $value = trim($value);
+            // Remove quotes if present
+            $value = trim($value, '"\''); 
+            if (!empty($name)) {
+                putenv($name . '=' . $value);
+                $_ENV[$name] = $value;
+            }
+        }
+    }
+}
+
+// Load configuration (after .env is loaded)
 require_once CONFIG_PATH . '/config.php';
 $config = require CONFIG_PATH . '/config.php';
 
