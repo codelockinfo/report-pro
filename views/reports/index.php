@@ -2,76 +2,64 @@
 $title = 'Reports';
 $currentRoute = '/reports';
 ob_start();
+
+// Preserve query parameters for navigation
+$queryParams = $_GET;
+unset($queryParams['url']);
+$queryString = http_build_query($queryParams);
+$suffix = $queryString ? '?' . $queryString : '';
 ?>
 
 <?php include __DIR__ . '/../partials/header.php'; ?>
 
 <style>
-    .dashboard-container {
+    .reports-container {
         padding: 0 20px 20px;
-        max-width: 1400px;
-        margin: 0 auto;
+        max-width: 100%;
+        box-sizing: border-box;
     }
     
-    .search-container {
-        margin-bottom: 20px;
-    }
-    .search-input {
-        width: 100%;
-        padding: 10px 12px;
-        border: 1px solid #dfe3e8;
-        border-radius: 4px;
-        font-size: 14px;
-        background-color: white;
-    }
-    
+    /* Masonry Layout */
     .reports-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 20px;
-        align-items: start;
+        column-count: 5;
+        column-gap: 20px;
     }
     
-    @media (max-width: 1000px) {
-        .reports-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
+    @media (max-width: 1600px) {
+        .reports-grid { column-count: 4; }
     }
-    @media (max-width: 700px) {
-        .reports-grid {
-            grid-template-columns: 1fr;
-        }
+    @media (max-width: 1300px) {
+        .reports-grid { column-count: 3; }
+    }
+    @media (max-width: 900px) {
+        .reports-grid { column-count: 2; }
+    }
+    @media (max-width: 600px) {
+        .reports-grid { column-count: 1; }
     }
 
+    /* Cards */
     .report-card {
         background: white;
         border-radius: 4px;
-        box-shadow: 0 0 0 1px rgba(63, 63, 68, 0.05), 0 1px 3px 0 rgba(63, 63, 68, 0.15);
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
         padding: 20px;
         margin-bottom: 20px;
+        break-inside: avoid; /* Prevent card from splitting across columns */
+        display: inline-block; /* Fix for break-inside support in some browsers */
+        width: 100%;
+        box-sizing: border-box;
     }
-    .card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-    }
+
+    /* Titles */
     .card-title {
         font-size: 16px;
         font-weight: 600;
         color: #212b36;
-        margin: 0;
+        margin: 0 0 15px 0;
     }
-    .card-action {
-        background: #303030;
-        color: white;
-        border: none;
-        padding: 5px 12px;
-        border-radius: 4px;
-        font-size: 13px;
-        text-decoration: none;
-        cursor: pointer;
-    }
+    
+    /* Lists */
     .report-list {
         list-style: none;
         padding: 0;
@@ -79,100 +67,80 @@ ob_start();
     }
     .report-item {
         margin-bottom: 8px;
+        line-height: 1.4;
     }
+    .report-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    /* Links */
     .report-link {
         color: #2c6ecb;
         text-decoration: none;
-        font-size: 14px;
+        font-size: 13px;
     }
     .report-link:hover {
         text-decoration: underline;
     }
+
+    /* Custom Report specific */
+    .create-btn {
+        background: #303030;
+        color: white;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        text-decoration: none;
+        float: right;
+    }
+    .create-btn:hover {
+        background: #101010;
+        text-decoration: none;
+    }
 </style>
 
-<div class="dashboard-container">
-    <!-- Search Bar -->
-    <form action="/reports" method="GET" class="search-container">
-        <input type="text" name="search" class="search-input" placeholder="Search by report name..." value="<?= htmlspecialchars($search ?? '') ?>">
-    </form>
-
-    <!-- 3-Column Grid -->
+<div class="reports-container">
     <div class="reports-grid">
-        <!-- Left Column -->
-        <div class="grid-column">
-            <!-- Custom Reports -->
-            <div class="report-card">
-                <div class="card-header">
-                    <h3 class="card-title">Custom reports</h3>
-                    <a href="/reports/create<?= $suffix ?>" class="card-action">Create custom report</a>
-                </div>
-                <div class="card-content">
-                    <?php if (empty($reports)): ?>
-                        <p style="color: #637381; font-size: 14px;">No custom reports yet.</p>
-                    <?php else: ?>
-                        <ul class="report-list">
-                            <?php foreach ($reports as $report): ?>
-                                <li class="report-item">
-                                    <a href="/reports/<?= $report['id'] . $suffix ?>" class="report-link"><?= htmlspecialchars($report['name']) ?></a>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    <?php endif; ?>
+        
+        <!-- Custom Reports Card -->
+        <div class="report-card">
+            <h3 class="card-title">
+                Custom reports
+                <a href="/reports/create<?= $suffix ?>" class="create-btn">Create custom report</a>
+            </h3>
+            <div class="card-content">
+                <?php if (empty($reports)): ?>
+                    <p style="color: #637381; font-size: 13px;">No custom reports yet.</p>
+                <?php else: ?>
+                    <ul class="report-list">
+                        <?php foreach ($reports as $report): ?>
+                            <li class="report-item">
+                                <a href="/reports/<?= $report['id'] . $suffix ?>" class="report-link"><?= htmlspecialchars($report['name']) ?></a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+                <div style="margin-top: 10px;">
+                     <a href="#" class="report-link">Copy of Orders by country</a>
                 </div>
             </div>
-
-            <!-- Categories -->
-            <?php if (isset($dashboardCategories['left_column'])): ?>
-                <?php foreach ($dashboardCategories['left_column'] as $key => $category): ?>
-                    <div class="report-card">
-                        <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
-                        <ul class="report-list">
-                            <?php foreach ($category['items'] as $item): ?>
-                                <li class="report-item">
-                                    <a href="<?= $item['url'] . $suffix ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
         </div>
 
-        <!-- Middle Column -->
-        <div class="grid-column">
-            <?php if (isset($dashboardCategories['middle_column'])): ?>
-                <?php foreach ($dashboardCategories['middle_column'] as $key => $category): ?>
-                    <div class="report-card">
-                        <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
-                        <ul class="report-list">
-                            <?php foreach ($category['items'] as $item): ?>
-                                <li class="report-item">
-                                    <a href="<?= $item['url'] . $suffix ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
+        <!-- Dynamic Categories -->
+        <?php foreach ($dashboardCategories as $key => $category): ?>
+            <div class="report-card">
+                <h3 class="card-title"><?= htmlspecialchars($category['title']) ?></h3>
+                <ul class="report-list">
+                    <?php foreach ($category['items'] as $item): ?>
+                        <li class="report-item">
+                            <a href="<?= $item['url'] . $suffix ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endforeach; ?>
 
-        <!-- Right Column -->
-        <div class="grid-column">
-            <?php if (isset($dashboardCategories['right_column'])): ?>
-                <?php foreach ($dashboardCategories['right_column'] as $key => $category): ?>
-                    <div class="report-card">
-                        <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
-                        <ul class="report-list">
-                            <?php foreach ($category['items'] as $item): ?>
-                                <li class="report-item">
-                                    <a href="<?= $item['url'] . $suffix ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
     </div>
 </div>
 
