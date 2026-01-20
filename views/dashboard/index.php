@@ -3,93 +3,222 @@ $title = 'Dashboard';
 ob_start();
 ?>
 
-<div class="Polaris-Page">
-    <div class="Polaris-Page__Header">
-        <div class="Polaris-Page__Title">
-            <h1 class="Polaris-DisplayText Polaris-DisplayText--sizeLarge">Dashboard</h1>
-        </div>
-    </div>
+<style>
+    .dashboard-header {
+        background-color: #303030;
+        color: white;
+        padding: 0 20px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+    .header-nav {
+        display: flex;
+        gap: 20px;
+        height: 100%;
+    }
+    .header-link {
+        color: #e0e0e0;
+        text-decoration: none;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        height: 100%;
+        border-bottom: 3px solid transparent;
+    }
+    .header-link.active {
+        color: white;
+        border-bottom-color: white;
+    }
+    .header-link:hover {
+        color: white;
+        text-decoration: none;
+    }
     
-    <div class="Polaris-Page__Content">
-        <div class="Polaris-Layout">
-            <div class="Polaris-Layout__Section">
-                <div class="Polaris-Card">
-                    <div class="Polaris-Card__Section">
-                        <h2 class="Polaris-Heading">Custom Reports</h2>
-                        <?php if (empty($reports)): ?>
-                            <div class="Polaris-EmptyState">
-                                <div class="Polaris-EmptyState__Section">
-                                    <div class="Polaris-EmptyState__DetailsContainer">
-                                        <p class="Polaris-EmptyState__Text">No custom reports yet</p>
-                                        <div class="Polaris-EmptyState__Actions">
-                                            <a href="/reports/create" class="Polaris-Button Polaris-Button--primary">
-                                                <span class="Polaris-Button__Content">
-                                                    <span>Create Report</span>
-                                                </span>
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php else: ?>
-                            <div class="Polaris-DataTable">
-                                <table class="Polaris-DataTable__Table">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Created</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($reports as $report): ?>
-                                            <tr>
-                                                <td><?= htmlspecialchars($report['name']) ?></td>
-                                                <td><?= htmlspecialchars($report['category'] ?? 'N/A') ?></td>
-                                                <td><?= date('M d, Y', strtotime($report['created_at'])) ?></td>
-                                                <td>
-                                                    <a href="/reports/<?= $report['id'] ?>" class="Polaris-Button Polaris-Button--plain">
-                                                        View
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php endif; ?>
-                    </div>
+    .dashboard-container {
+        padding: 0 20px 20px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .search-container {
+        margin-bottom: 20px;
+    }
+    .search-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #dfe3e8;
+        border-radius: 4px;
+        font-size: 14px;
+        background-color: white;
+    }
+    
+    .reports-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        align-items: start;
+    }
+    
+    @media (max-width: 1000px) {
+        .reports-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    @media (max-width: 700px) {
+        .reports-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .report-card {
+        background: white;
+        border-radius: 4px;
+        box-shadow: 0 0 0 1px rgba(63, 63, 68, 0.05), 0 1px 3px 0 rgba(63, 63, 68, 0.15);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    .card-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #212b36;
+        margin: 0;
+    }
+    .card-action {
+        background: #303030;
+        color: white;
+        border: none;
+        padding: 5px 12px;
+        border-radius: 4px;
+        font-size: 13px;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    .report-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .report-item {
+        margin-bottom: 8px;
+    }
+    .report-link {
+        color: #2c6ecb;
+        text-decoration: none;
+        font-size: 14px;
+    }
+    .report-link:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<!-- Custom Header -->
+<div class="dashboard-header">
+    <div class="header-nav">
+        <a href="/" class="header-link active">Reports</a>
+        <a href="/explore" class="header-link">Explore</a>
+        <a href="/schedule" class="header-link">Schedule</a>
+        <a href="/settings" class="header-link">Settings</a>
+    </div>
+    <div class="header-right">
+        <a href="#" class="header-link">Docs</a>
+    </div>
+</div>
+
+<div class="dashboard-container">
+    <!-- Search Bar -->
+    <div class="search-container">
+        <input type="text" class="search-input" placeholder="Search by report name...">
+    </div>
+
+    <!-- 3-Column Grid -->
+    <div class="reports-grid">
+        
+        <!-- Left Column -->
+        <div class="grid-column">
+            <!-- Custom Reports -->
+            <div class="report-card">
+                <div class="card-header">
+                    <h3 class="card-title">Custom reports</h3>
+                    <a href="/reports/create" class="card-action">Create custom report</a>
+                </div>
+                <div class="card-content">
+                    <?php if (empty($reports)): ?>
+                        <p style="color: #637381; font-size: 14px;">No custom reports yet.</p>
+                    <?php else: ?>
+                        <ul class="report-list">
+                            <?php foreach ($reports as $report): ?>
+                                <li class="report-item">
+                                    <a href="/reports/<?= $report['id'] ?>" class="report-link"><?= htmlspecialchars($report['name']) ?></a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
                 </div>
             </div>
-            
-            <div class="Polaris-Layout__Section Polaris-Layout__Section--secondary">
-                <div class="Polaris-Card">
-                    <div class="Polaris-Card__Section">
-                        <h2 class="Polaris-Heading">Scheduled Reports</h2>
-                        <?php if (empty($schedules)): ?>
-                            <p class="Polaris-TextStyle--variationSubdued">No scheduled reports</p>
-                        <?php else: ?>
-                            <ul class="Polaris-List">
-                                <?php foreach ($schedules as $schedule): ?>
-                                    <li>
-                                        <strong><?= htmlspecialchars($schedule['report_name']) ?></strong><br>
-                                        <span class="Polaris-TextStyle--variationSubdued">
-                                            <?= ucfirst($schedule['frequency']) ?> - Next: <?= date('M d, Y H:i', strtotime($schedule['next_run_at'])) ?>
-                                        </span>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php endif; ?>
-                    </div>
+
+            <!-- Categories -->
+            <?php foreach ($dashboardCategories['left_column'] as $key => $category): ?>
+                <div class="report-card">
+                    <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
+                    <ul class="report-list">
+                        <?php foreach ($category['items'] as $item): ?>
+                            <li class="report-item">
+                                <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
                 </div>
-            </div>
+            <?php endforeach; ?>
         </div>
+
+        <!-- Middle Column -->
+        <div class="grid-column">
+            <?php foreach ($dashboardCategories['middle_column'] as $key => $category): ?>
+                <div class="report-card">
+                    <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
+                    <ul class="report-list">
+                        <?php foreach ($category['items'] as $item): ?>
+                            <li class="report-item">
+                                <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Right Column -->
+        <div class="grid-column">
+             <?php foreach ($dashboardCategories['right_column'] as $key => $category): ?>
+                <div class="report-card">
+                    <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
+                    <ul class="report-list">
+                        <?php foreach ($category['items'] as $item): ?>
+                            <li class="report-item">
+                                <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endforeach; ?>
+        </div>
+
     </div>
 </div>
 
 <?php
 $content = ob_get_clean();
+// Note: We use the existing layout but the content has its own header and container
 include __DIR__ . '/../layouts/app.php';
 ?>
 
