@@ -1,5 +1,6 @@
 <?php
 $title = 'Reports';
+$currentRoute = '/reports';
 ob_start();
 ?>
 

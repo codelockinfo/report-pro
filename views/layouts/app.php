@@ -72,9 +72,13 @@
             var History = actions.History;
             var history = History.create(app);
             
-            // Update Shopify URL to match current iframe path
-            // We strip the common query params that Shopify adds automatically
-            var path = window.location.pathname;
+            // Update Shopify URL to match current route
+            // Use explicit route from PHP if available (handles subdirectories correctly)
+            // Otherwise fall back to window.location.pathname
+            var path = '<?= $currentRoute ?? '' ?>';
+            if (!path) {
+                path = window.location.pathname;
+            }
             history.dispatch(History.Action.REPLACE, path);
 
             // Set up loading bar
