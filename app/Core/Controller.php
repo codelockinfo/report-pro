@@ -115,10 +115,23 @@ class Controller
 
     protected function requireAuth()
     {
+        error_log("Controller::requireAuth - Checking authentication");
         $shop = $this->getShop();
+        
         if (!$shop) {
-            $this->redirect('/auth/install');
+            error_log("Controller::requireAuth - No shop found in session");
+            $shopParam = $_GET['shop'] ?? '';
+            
+            if ($shopParam) {
+                error_log("Controller::requireAuth - Redirecting to install with shop: {$shopParam}");
+                $this->redirect('/auth/install?shop=' . urlencode($shopParam));
+            } else {
+                error_log("Controller::requireAuth - No shop parameter, redirecting to install");
+                $this->redirect('/auth/install');
+            }
         }
+        
+        error_log("Controller::requireAuth - Shop authenticated: {$shop['shop_domain']}");
         return $shop;
     }
 

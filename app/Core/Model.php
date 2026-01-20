@@ -49,31 +49,64 @@ abstract class Model
 
     public function create($data)
     {
-        $fields = array_keys($data);
-        $values = array_values($data);
-        $placeholders = array_fill(0, count($fields), '?');
+        try {
+            $fields = array_keys($data);
+            $values = array_values($data);
+            $placeholders = array_fill(0, count($fields), '?');
 
-        $sql = "INSERT INTO {$this->table} (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($values);
+            $sql = "INSERT INTO {$this->table} (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
+            $stmt = $this->db->prepare($sql);
+            $result = $stmt->execute($values);
+            
+            if (!$result) {
+                $errorInfo = $stmt->errorInfo();
+                error_log("Model::create failed for table {$this->table}: " . json_encode($errorInfo));
+                error_log("SQL: {$sql}");
+                error_log("Data: " . json_encode($data));
+                return false;
+            }
 
-        return $this->db->lastInsertId();
+            $insertId = $this->db->lastInsertId();
+            error_log("Model::create success for table {$this->table}, ID: {$insertId}");
+            return $insertId;
+        } catch (\Exception $e) {
+            error_log("Model::create exception for table {$this->table}: " . $e->getMessage());
+            error_log("Data: " . json_encode($data));
+            return false;
+        }
     }
 
     public function update($id, $data)
     {
-        $fields = array_keys($data);
-        $values = array_values($data);
-        $values[] = $id;
+        try {
+            $fields = array_keys($data);
+            $values = array_values($data);
+            $values[] = $id;
 
-        $set = [];
-        foreach ($fields as $field) {
-            $set[] = "{$field} = ?";
+            $set = [];
+            foreach ($fields as $field) {
+                $set[] = "{$field} = ?";
+            }
+
+            $sql = "UPDATE {$this->table} SET " . implode(', ', $set) . " WHERE {$this->primaryKey} = ?";
+            $stmt = $this->db->prepare($sql);
+            $result = $stmt->execute($values);
+            
+            if (!$result) {
+                $errorInfo = $stmt->errorInfo();
+                error_log("Model::update failed for table {$this->table}, ID {$id}: " . json_encode($errorInfo));
+                error_log("SQL: {$sql}");
+                error_log("Data: " . json_encode($data));
+                return false;
+            }
+            
+            error_log("Model::update success for table {$this->table}, ID: {$id}");
+            return $result;
+        } catch (\Exception $e) {
+            error_log("Model::update exception for table {$this->table}, ID {$id}: " . $e->getMessage());
+            error_log("Data: " . json_encode($data));
+            return false;
         }
-
-        $sql = "UPDATE {$this->table} SET " . implode(', ', $set) . " WHERE {$this->primaryKey} = ?";
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute($values);
     }
 
     public function delete($id)

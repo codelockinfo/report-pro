@@ -29,6 +29,9 @@ class Router
         $method = $_SERVER['REQUEST_METHOD'];
         $url = $_GET['url'] ?? '/';
         
+        error_log("Router::dispatch - Method: {$method}, URL: {$url}");
+        error_log("Router::dispatch - Query string: " . ($_SERVER['QUERY_STRING'] ?? 'NONE'));
+        
         // Ensure URL starts with / for route matching
         if (!empty($url) && $url[0] !== '/') {
             $url = '/' . $url;
@@ -36,10 +39,13 @@ class Router
         
         $url = rtrim($url, '/');
         $url = $url ?: '/';
+        
+        error_log("Router::dispatch - Normalized URL: {$url}");
 
         if (isset($this->routes[$method])) {
             foreach ($this->routes[$method] as $route => $controller) {
                 if (preg_match($route, $url, $matches)) {
+                    error_log("Router::dispatch - Route matched: {$route} -> {$controller}");
                     $this->params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
                     list($controllerName, $method) = explode('@', $controller);
                     $controllerClass = "App\\Controllers\\{$controllerName}";
@@ -56,6 +62,7 @@ class Router
                                 // Database error - let controller handle it
                                 throw $e;
                             }
+                            error_log("Router::dispatch - Controller exception: " . $e->getMessage());
                             http_response_code(500);
                             echo "Error: " . htmlspecialchars($e->getMessage());
                             return;
@@ -65,6 +72,7 @@ class Router
             }
         }
 
+        error_log("Router::dispatch - No route matched, returning 404");
         http_response_code(404);
         echo "404 - Page not found";
     }
