@@ -78,7 +78,7 @@
             
             // Set up History to sync with Shopify URL
             var History = actions.History;
-            var history = History.create(app);
+            var shopifyHistory = History.create(app);
             
             // Update Shopify URL to match current route
             // Use explicit route from PHP if available (handles subdirectories correctly)
@@ -87,7 +87,12 @@
             if (!path) {
                 path = window.location.pathname;
             }
-            history.dispatch(History.Action.REPLACE, path);
+            // Use 'shopifyHistory' to avoid conflict with global window.history
+            if (shopifyHistory && typeof shopifyHistory.dispatch === 'function') {
+                shopifyHistory.dispatch(History.Action.REPLACE, path);
+            } else {
+                 console.warn("ReportPro: shopifyHistory.dispatch is not available");
+            }
 
             // Set up loading bar
             var Loading = actions.Loading;
