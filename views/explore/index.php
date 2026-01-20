@@ -1,12 +1,15 @@
 <?php
-$title = 'Explore Reports';
+$title = 'Chart analysis';
+$currentRoute = '/explore';
 ob_start();
 ?>
+
+<?php include __DIR__ . '/../partials/header.php'; ?>
 
 <div class="Polaris-Page">
     <div class="Polaris-Page__Header">
         <div class="Polaris-Page__Title">
-            <h1 class="Polaris-DisplayText Polaris-DisplayText--sizeLarge">Explore Reports</h1>
+            <h1 class="Polaris-DisplayText Polaris-DisplayText--sizeLarge">Chart analysis</h1>
         </div>
     </div>
     

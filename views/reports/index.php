@@ -4,41 +4,9 @@ $currentRoute = '/reports';
 ob_start();
 ?>
 
+<?php include __DIR__ . '/../partials/header.php'; ?>
+
 <style>
-    .dashboard-header {
-        background-color: #303030;
-        color: white;
-        padding: 0 20px;
-        height: 50px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 20px;
-    }
-    .header-nav {
-        display: flex;
-        gap: 20px;
-        height: 100%;
-    }
-    .header-link {
-        color: #e0e0e0;
-        text-decoration: none;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        padding: 0 10px;
-        height: 100%;
-        border-bottom: 3px solid transparent;
-    }
-    .header-link.active {
-        color: white;
-        border-bottom-color: white;
-    }
-    .header-link:hover {
-        color: white;
-        text-decoration: none;
-    }
-    
     .dashboard-container {
         padding: 0 20px 20px;
         max-width: 1400px;
@@ -121,19 +89,6 @@ ob_start();
         text-decoration: underline;
     }
 </style>
-
-<!-- Custom Header -->
-<div class="dashboard-header">
-    <div class="header-nav">
-        <a href="/reports" class="header-link active">Reports</a>
-        <a href="/explore" class="header-link">Explore</a>
-        <a href="/schedule" class="header-link">Schedule</a>
-        <a href="/settings" class="header-link">Settings</a>
-    </div>
-    <div class="header-right">
-        <a href="#" class="header-link">Docs</a>
-    </div>
-</div>
 
 <div class="dashboard-container">
     <!-- Search Bar -->
