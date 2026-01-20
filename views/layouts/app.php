@@ -64,17 +64,31 @@
             // Set up title bar
             var TitleBar = actions.TitleBar;
             var titleBar = TitleBar.create(app, {
-                title: '<?= $title ?? 'Report Pro' ?>'
+                title: '<?= $title ?? 'Report Pro' ?>',
+                breadcrumbs: <?= isset($breadcrumbs) ? json_encode($breadcrumbs) : 'null' ?>
             });
             
+            // Set up History to sync with Shopify URL
+            var History = actions.History;
+            var history = History.create(app);
+            
+            // Update Shopify URL to match current iframe path
+            // We strip the common query params that Shopify adds automatically
+            var path = window.location.pathname;
+            history.dispatch(History.Action.REPLACE, path);
+
             // Set up loading bar
             var Loading = actions.Loading;
             var loading = Loading.create(app);
             
             // Show loading on navigation
             document.addEventListener('click', function(e) {
-                if (e.target.tagName === 'A' && e.target.href && !e.target.href.startsWith('#')) {
+                var target = e.target.closest('a');
+                if (target && target.href && !target.href.startsWith('#') && !target.href.startsWith('javascript:')) {
+                    // Start loading
                     loading.dispatch(Loading.Action.START);
+                    
+                    // Allow normal navigation - App Bridge History will pick up the new page load
                 }
             });
         }
