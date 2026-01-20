@@ -115,4 +115,3 @@ abstract class Model
         return $stmt->execute([$id]);
     }
 }
-

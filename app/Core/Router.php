@@ -73,6 +73,16 @@ class Router
         }
 
         error_log("Router::dispatch - No route matched, returning 404");
+        // Fallback to Dashboard index if / is 404 (should be covered by routes.php but safety net)
+        if ($url === '/') {
+             // Try default controller
+             $controllerClass = "App\\Controllers\\DashboardController";
+             if (class_exists($controllerClass)) {
+                 $controllerInstance = new $controllerClass();
+                 return call_user_func_array([$controllerInstance, 'index'], []);
+             }
+        }
+
         http_response_code(404);
         echo "404 - Page not found";
     }
@@ -82,4 +92,3 @@ class Router
         return $this->params;
     }
 }
-

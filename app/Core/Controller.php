@@ -174,4 +174,3 @@ class Controller
         return hash_equals($hmac, $calculatedHmac);
     }
 }
-
