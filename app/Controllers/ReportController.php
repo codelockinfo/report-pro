@@ -233,46 +233,8 @@ class ReportController extends Controller
             ]
         ];
     }
-                        ['name' => 'Orders by channel', 'url' => '/reports/predefined/orders_channel'],
-                        ['name' => 'Orders by country', 'url' => '/reports/predefined/orders_country'],
-                        ['name' => 'Orders by POS location', 'url' => '/reports/predefined/orders_pos'],
-                        ['name' => 'Orders by referring site', 'url' => '/reports/predefined/orders_referrer'],
-                        ['name' => 'Orders by UTM campaign', 'url' => '/reports/predefined/orders_utm_campaign'],
-                        ['name' => 'Orders pending fulfillment', 'url' => '/reports/predefined/orders_pending'],
-                        ['name' => 'Total order value by channel', 'url' => '/reports/predefined/value_channel'],
-                        ['name' => 'Total order value by country', 'url' => '/reports/predefined/value_country'],
-                        ['name' => 'Total orders by day and hour', 'url' => '/reports/predefined/orders_day_hour']
-                    ]
-                ]
-            ],
-            'right_column' => [
-                'transactions' => [
-                    'title' => 'Transactions',
-                    'items' => [
-                        ['name' => 'All transactions', 'url' => '/reports/predefined/all_transactions'],
-                        ['name' => 'Failed transactions', 'url' => '/reports/predefined/failed_transactions'],
-                        ['name' => 'Gift card transactions', 'url' => '/reports/predefined/gift_card'],
-                        ['name' => 'Monthly transactions by payment gateway', 'url' => '/reports/predefined/trans_gateway'],
-                        ['name' => 'Monthly transactions per user', 'url' => '/reports/predefined/trans_user'],
-                        ['name' => 'PayPal reconciliation', 'url' => '/reports/predefined/paypal'],
-                        ['name' => 'Pending transactions', 'url' => '/reports/predefined/pending_trans'],
-                        ['name' => 'Total transactions value over time', 'url' => '/reports/predefined/trans_value_time'],
-                        ['name' => 'Volume per payment gateway', 'url' => '/reports/predefined/volume_gateway']
-                    ]
-                ],
-                'inventory' => [
-                    'title' => 'Inventory levels',
-                    'items' => [
-                        ['name' => 'Inventory by location', 'url' => '/reports/predefined/inv_location'],
-                        ['name' => 'Inventory by location by product', 'url' => '/reports/predefined/inv_loc_prod'],
-                        ['name' => 'Inventory by location by product type', 'url' => '/reports/predefined/inv_loc_type'],
-                        ['name' => 'Inventory by location by variant', 'url' => '/reports/predefined/inv_loc_variant'],
-                        ['name' => 'Inventory by location by vendor', 'url' => '/reports/predefined/inv_loc_vendor']
-                    ]
-                ]
-            ]
-        ];
-    }
+
+
 
     public function create()
     {
