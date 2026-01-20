@@ -18,12 +18,20 @@ class DashboardController extends Controller
             $shop = $this->requireAuth();
             
             // Redirect to /reports to match the desired URL structure
-            // Append current query parameters (shop, host, etc)
+            // Ensure we preserve ALL query parameters from Shopify (host, shop, hmac, timestamp)
             $queryParams = $_GET;
+            
+            // Explicitly ensure report-pro specific params don't interfere if present
+            unset($queryParams['url']); // Remove the router url param if present
+            
             $queryString = http_build_query($queryParams);
             $url = '/reports' . ($queryString ? '?' . $queryString : '');
             
-            $this->redirect($url);
+            error_log("Dashboard: Redirecting to {$url}");
+            
+            // Use native header redirect to be absolutely sure
+            header("Location: " . $url);
+            exit;
         } catch (\Exception $e) {
             error_log("Dashboard Redirect Exception: " . $e->getMessage());
             // If auth fails, requireAuth will handle redirect usually, but safety net:

@@ -55,6 +55,14 @@
             forceRedirect: true
         };
         
+        // Debugging: If host is missing, let us know
+        if (!host) {
+            console.error("ReportPro: Host parameter is missing! App Bridge cannot initialize.");
+            // Try to find host in parent URL if possible (usually blocked) or fallback
+        } else {
+            console.log("ReportPro: Initializing App Bridge with host:", host);
+        }
+
         // Initialize
         if (host) {
             // Check if createApp is directly on AppBridge or default
