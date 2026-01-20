@@ -69,4 +69,3 @@ class Database
         throw new \Exception("Cannot unserialize singleton");
     }
 }
-
