@@ -57,7 +57,9 @@
         
         // Initialize
         if (host) {
-            var app = AppBridge.create(config);
+            // Check if createApp is directly on AppBridge or default
+            var createApp = AppBridge.create || AppBridge.default;
+            var app = createApp(config);
             
             // Set up title bar
             var TitleBar = actions.TitleBar;
