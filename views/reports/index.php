@@ -3,33 +3,6 @@ $title = 'Reports';
 ob_start();
 ?>
 
-<div class="Polaris-Page">
-    <div class="Polaris-Page__Header">
-        <div class="Polaris-Page__Title">
-            <h1 class="Polaris-DisplayText Polaris-DisplayText--sizeLarge">Reports</h1>
-        </div>
-        <div class="Polaris-Page__Actions">
-            <a href="/reports/create" class="Polaris-Button Polaris-Button--primary">
-                <span class="Polaris-Button__Content">
-                    <span>Create Report</span>
-                </span>
-            </a>
-        </div>
-    </div>
-    
-    <div class="Polaris-Page__Content">
-        <div class="Polaris-Card">
-            <div class="Polaris-Card__Section">
-                <div class="Polaris-Stack Polaris-Stack--vertical">
-                    <div class="Polaris-Stack__Item">
-                        <div class="Polaris-TextField">
-                            <input type="text" id="search-input" class="Polaris-TextField__Input" 
-                                   placeholder="Search reports..." value="<?= htmlspecialchars($search) ?>">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 <style>
     .dashboard-header {
         background-color: #303030;
@@ -169,32 +142,85 @@ ob_start();
 
     <!-- 3-Column Grid -->
     <div class="reports-grid">
-        
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
+        <!-- Left Column -->
+        <div class="grid-column">
+            <!-- Custom Reports -->
+            <div class="report-card">
+                <div class="card-header">
+                    <h3 class="card-title">Custom reports</h3>
+                    <a href="/reports/create" class="card-action">Create custom report</a>
+                </div>
+                <div class="card-content">
+                    <?php if (empty($reports)): ?>
+                        <p style="color: #637381; font-size: 14px;">No custom reports yet.</p>
+                    <?php else: ?>
+                        <ul class="report-list">
+                            <?php foreach ($reports as $report): ?>
+                                <li class="report-item">
+                                    <a href="/reports/<?= $report['id'] ?>" class="report-link"><?= htmlspecialchars($report['name']) ?></a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
             </div>
+
+            <!-- Categories -->
+            <?php if (isset($dashboardCategories['left_column'])): ?>
+                <?php foreach ($dashboardCategories['left_column'] as $key => $category): ?>
+                    <div class="report-card">
+                        <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
+                        <ul class="report-list">
+                            <?php foreach ($category['items'] as $item): ?>
+                                <li class="report-item">
+                                    <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+
+        <!-- Middle Column -->
+        <div class="grid-column">
+            <?php if (isset($dashboardCategories['middle_column'])): ?>
+                <?php foreach ($dashboardCategories['middle_column'] as $key => $category): ?>
+                    <div class="report-card">
+                        <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
+                        <ul class="report-list">
+                            <?php foreach ($category['items'] as $item): ?>
+                                <li class="report-item">
+                                    <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+
+        <!-- Right Column -->
+        <div class="grid-column">
+            <?php if (isset($dashboardCategories['right_column'])): ?>
+                <?php foreach ($dashboardCategories['right_column'] as $key => $category): ?>
+                    <div class="report-card">
+                        <h3 class="card-title" style="margin-bottom: 15px;"><?= htmlspecialchars($category['title']) ?></h3>
+                        <ul class="report-list">
+                            <?php foreach ($category['items'] as $item): ?>
+                                <li class="report-item">
+                                    <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </div>
     </div>
 </div>
-
-<script>
-document.getElementById('search-input').addEventListener('keyup', function(e) {
-    if (e.key === 'Enter') {
-        const search = this.value;
-        window.location.href = '/reports?search=' + encodeURIComponent(search);
-    }
-});
-</script>
 
 <?php
 $content = ob_get_clean();
 include __DIR__ . '/../layouts/app.php';
 ?>
-
