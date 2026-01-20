@@ -26,9 +26,9 @@ $router->get('/reports/{id}/data', 'ReportController@getData');
 // Predefined reports
 $router->get('/reports/predefined/{type}', 'ReportController@predefined');
 
-// Explore routes
-$router->get('/explore', 'ExploreController@index');
-$router->get('/explore/{category}', 'ExploreController@category');
+// Chart Analysis routes
+$router->get('/chart-analysis', 'ChartAnalysisController@index');
+$router->get('/chart-analysis/{category}', 'ChartAnalysisController@category');
 
 // Schedule routes
 $router->get('/schedule', 'ScheduleController@index');

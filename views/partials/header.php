@@ -46,7 +46,7 @@ $suffix = $queryString ? '?' . $queryString : '';
 <div class="dashboard-header">
     <div class="header-nav">
         <a href="/reports<?= $suffix ?>" class="header-link <?= ($currentRoute === '/reports') ? 'active' : '' ?>">Reports</a>
-        <a href="/explore<?= $suffix ?>" class="header-link <?= ($currentRoute === '/explore') ? 'active' : '' ?>">Chart analysis</a>
+        <a href="/chart-analysis<?= $suffix ?>" class="header-link <?= ($currentRoute === '/chart-analysis') ? 'active' : '' ?>">Chart analysis</a>
         <a href="/schedule<?= $suffix ?>" class="header-link <?= ($currentRoute === '/schedule') ? 'active' : '' ?>">Schedule</a>
         <a href="/settings<?= $suffix ?>" class="header-link <?= ($currentRoute === '/settings') ? 'active' : '' ?>">Settings</a>
     </div>
