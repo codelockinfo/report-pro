@@ -86,13 +86,39 @@ class Controller
 
     protected function getShop()
     {
+        // For embedded Shopify apps, get shop from URL parameter instead of session
+        // Sessions don't work reliably in iframes
+        $shopParam = $_GET['shop'] ?? '';
+        
+        if (!empty($shopParam)) {
+            error_log("Controller::getShop - Using shop from URL: {$shopParam}");
+            $shopModel = new \App\Models\Shop();
+            $shop = $shopModel->findByDomain($shopParam);
+            
+            if ($shop) {
+                error_log("Controller::getShop - Found shop in database: {$shop['shop_domain']}");
+                return $shop;
+            } else {
+                error_log("Controller::getShop - Shop not found in database: {$shopParam}");
+                return null;
+            }
+        }
+        
+        // Fallback to session (for non-embedded access)
         $session = $this->getSession();
         if (!$session || !isset($session['shop'])) {
+            error_log("Controller::getShop - No shop in URL or session");
             return null;
         }
 
         $shopModel = new \App\Models\Shop();
-        return $shopModel->findByDomain($session['shop']);
+        $shop = $shopModel->findByDomain($session['shop']);
+        
+        if ($shop) {
+            error_log("Controller::getShop - Found shop from session: {$shop['shop_domain']}");
+        }
+        
+        return $shop;
     }
 
     protected function getSession()
@@ -119,7 +145,7 @@ class Controller
         $shop = $this->getShop();
         
         if (!$shop) {
-            error_log("Controller::requireAuth - No shop found in session");
+            error_log("Controller::requireAuth - No shop found");
             $shopParam = $_GET['shop'] ?? '';
             
             if ($shopParam) {
