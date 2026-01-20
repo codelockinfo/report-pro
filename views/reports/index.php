@@ -104,7 +104,7 @@ ob_start();
             <div class="report-card">
                 <div class="card-header">
                     <h3 class="card-title">Custom reports</h3>
-                    <a href="/reports/create" class="card-action">Create custom report</a>
+                    <a href="/reports/create<?= $suffix ?>" class="card-action">Create custom report</a>
                 </div>
                 <div class="card-content">
                     <?php if (empty($reports)): ?>
@@ -113,7 +113,7 @@ ob_start();
                         <ul class="report-list">
                             <?php foreach ($reports as $report): ?>
                                 <li class="report-item">
-                                    <a href="/reports/<?= $report['id'] ?>" class="report-link"><?= htmlspecialchars($report['name']) ?></a>
+                                    <a href="/reports/<?= $report['id'] . $suffix ?>" class="report-link"><?= htmlspecialchars($report['name']) ?></a>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -129,7 +129,7 @@ ob_start();
                         <ul class="report-list">
                             <?php foreach ($category['items'] as $item): ?>
                                 <li class="report-item">
-                                    <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                                    <a href="<?= $item['url'] . $suffix ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -147,7 +147,7 @@ ob_start();
                         <ul class="report-list">
                             <?php foreach ($category['items'] as $item): ?>
                                 <li class="report-item">
-                                    <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                                    <a href="<?= $item['url'] . $suffix ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -165,7 +165,7 @@ ob_start();
                         <ul class="report-list">
                             <?php foreach ($category['items'] as $item): ?>
                                 <li class="report-item">
-                                    <a href="<?= $item['url'] ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                                    <a href="<?= $item['url'] . $suffix ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
                                 </li>
                             <?php endforeach; ?>
                         </ul>

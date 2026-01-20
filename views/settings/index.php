@@ -128,17 +128,25 @@ ob_start();
     </div>
 
     <div class="settings-layout">
+<?php
+// Preserve params for sidebar links
+$queryParams = $_GET;
+unset($queryParams['url']);
+$queryString = http_build_query($queryParams);
+$suffix = $queryString ? '?' . $queryString : '';
+?>
+
         <!-- Sidebar -->
         <div class="settings-sidebar">
             <ul class="sidebar-nav">
                 <li class="sidebar-item">
-                    <a href="/settings" class="sidebar-link active">General</a>
+                    <a href="/settings<?= $suffix ?>" class="sidebar-link active">General</a>
                 </li>
                 <li class="sidebar-item">
-                    <a href="/settings/schedules" class="sidebar-link">Schedules</a>
+                    <a href="/settings/schedules<?= $suffix ?>" class="sidebar-link">Schedules</a>
                 </li>
                 <li class="sidebar-item">
-                    <a href="/settings/integrations" class="sidebar-link">Integrations</a>
+                    <a href="/settings/integrations<?= $suffix ?>" class="sidebar-link">Integrations</a>
                 </li>
             </ul>
         </div>

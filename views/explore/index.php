@@ -26,7 +26,7 @@ ob_start();
                                         <h3 class="Polaris-Subheading"><?= htmlspecialchars($report['name']) ?></h3>
                                         <p class="Polaris-TextStyle--variationSubdued"><?= htmlspecialchars($report['description']) ?></p>
                                         <div style="margin-top: 0.5rem;">
-                                            <a href="/reports/predefined/<?= $key ?>" class="Polaris-Button Polaris-Button--plain">
+                                            <a href="/reports/predefined/<?= $report['id'] . $suffix ?>" class="Polaris-Button Polaris-Button--plain">
                                                 View Report
                                             </a>
                                         </div>
