@@ -6,20 +6,22 @@
     <title><?= $title ?? 'Report Pro' ?> - Shopify App</title>
     
     <!-- Shopify Polaris CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/@shopify/polaris@latest/build/esm/styles.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@shopify/polaris@10.0.0/build/esm/styles.css" />
     
-    <!-- App Bridge -->
-    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
-    <script src="https://cdn.shopify.com/shopifycloud/app-bridge-utils.js"></script>
+    <!-- App Bridge (Legacy) - Better for PHP apps without build tools -->
+    <script src="https://unpkg.com/@shopify/app-bridge@3.7.10/umd/index.js"></script>
+    <script src="https://unpkg.com/@shopify/app-bridge-utils@3.5.1/umd/index.js"></script>
     
     <style>
         body {
             margin: 0;
             padding: 0;
+            background-color: #f4f6f8;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         }
         .Polaris-Page {
-            padding: 0;
+            max-width: 100%;
+            padding: 2rem;
         }
     </style>
 </head>
@@ -29,36 +31,52 @@
     </div>
     
     <script>
+        // Check if we are in an iframe (embedded)
+        if (window.top === window.self) {
+            // Not embedded - show warning or handle authentication
+            // window.location.href = '/auth/install';
+        }
+
         // Initialize App Bridge
-        const AppBridge = window['app-bridge'];
-        const actions = AppBridge.actions;
-        const utils = window['app-bridge-utils'];
+        var AppBridge = window['app-bridge'];
+        var actions = AppBridge.actions;
+        var utils = window['app-bridge-utils'];
         
-        const app = AppBridge.default({
+        // Get host from URL
+        var urlParams = new URLSearchParams(window.location.search);
+        var host = urlParams.get('host');
+        var shop = urlParams.get('shop');
+        
+        // Config
+        var config = {
             apiKey: '<?= $config['shopify']['api_key'] ?>',
-            shopOrigin: '<?= $shop['shop_domain'] ?? '' ?>',
+            shopOrigin: shop || '<?= $shop['shop_domain'] ?? '' ?>',
+            host: host,
             forceRedirect: true
-        });
+        };
         
-        // Set up title bar
-        const TitleBar = actions.TitleBar;
-        TitleBar.create(app, {
-            title: '<?= $title ?? 'Report Pro' ?>'
-        });
-        
-        // Set up loading bar
-        const Loading = actions.Loading;
-        const loading = Loading.create(app);
-        
-        // Show loading on navigation
-        document.addEventListener('click', function(e) {
-            if (e.target.tagName === 'A' && e.target.href) {
-                loading.dispatch(Loading.Action.START);
-            }
-        });
+        // Initialize
+        if (host) {
+            var app = AppBridge.create(config);
+            
+            // Set up title bar
+            var TitleBar = actions.TitleBar;
+            var titleBar = TitleBar.create(app, {
+                title: '<?= $title ?? 'Report Pro' ?>'
+            });
+            
+            // Set up loading bar
+            var Loading = actions.Loading;
+            var loading = Loading.create(app);
+            
+            // Show loading on navigation
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A' && e.target.href && !e.target.href.startsWith('#')) {
+                    loading.dispatch(Loading.Action.START);
+                }
+            });
+        }
     </script>
-    
-    <script src="/public/js/app.js"></script>
 </body>
 </html>
 

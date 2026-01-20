@@ -205,7 +205,14 @@ class AuthController extends Controller
             error_log("Session set successfully");
 
             // Redirect to app
-            $appUrl = $this->config['app_url'] . "/?shop={$shop}";
+            $host = $_GET['host'] ?? '';
+            // Ensure host is URL encoded
+            if (!empty($host)) {
+                $appUrl = $this->config['app_url'] . "/?shop={$shop}&host=" . urlencode($host);
+            } else {
+                $appUrl = $this->config['app_url'] . "/?shop={$shop}";
+            }
+            
             error_log("Redirecting to: {$appUrl}");
             error_log("=== OAuth Callback Completed Successfully ===");
             
