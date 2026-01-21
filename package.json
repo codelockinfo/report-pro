@@ -1,0 +1,11 @@
+{
+  "name": "report-pro",
+  "version": "1.0.0",
+  "description": "ReportPro - Easy Report for Shopify",
+  "private": false,
+  "scripts": {
+    "deploy": "echo 'PHP app - no build needed'"
+  },
+  "author": "CodeLock Solutions",
+  "license": "UNLICENSED"
+}
