@@ -8,8 +8,8 @@
     <!-- Shopify Polaris CSS -->
     <link rel="stylesheet" href="https://unpkg.com/@shopify/polaris@10.0.0/build/esm/styles.css" />
     
-    <!-- App Bridge 4.x - Modern API with Navigation Menu support -->
-    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+    <!-- App Bridge 3.x - Stable version for PHP apps -->
+    <script src="https://unpkg.com/@shopify/app-bridge@3.7.10/umd/index.js"></script>
     
     <!-- Chart.js for reports -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -42,59 +42,25 @@
         if (!host) {
             console.error("ReportPro: Host parameter is missing! App Bridge cannot initialize.");
         } else {
-            console.log("ReportPro: Initializing App Bridge 4.x with host:", host);
+            console.log("ReportPro: Initializing App Bridge 3.x with host:", host);
         }
 
-        // Initialize App Bridge 4.x
-        if (host && window.shopify) {
+        // Initialize App Bridge 3.x
+        if (host && window['app-bridge']) {
             try {
-                // Create app instance
-                var app = window.shopify.app({
+                var AppBridge = window['app-bridge'];
+                var createApp = AppBridge.createApp || AppBridge.default;
+                
+                var app = createApp({
                     apiKey: '<?= $config['shopify']['api_key'] ?>',
-                    host: host
+                    host: host,
+                    forceRedirect: true
                 });
                 
-                console.log('ReportPro: App Bridge 4.x initialized successfully');
+                console.log('ReportPro: App Bridge initialized successfully');
                 
-                // Configure Navigation Menu
-                <?php
-                $appUrl = getenv('APP_URL') ?: 'http://localhost/report-pro';
-                $baseUrl = rtrim($appUrl, '/');
-                $queryParams = $_GET;
-                unset($queryParams['url']);
-                $queryString = http_build_query($queryParams);
-                $suffix = $queryString ? '?' . $queryString : '';
-                ?>
-                
-                // Set up navigation using ui-nav-menu
-                var navConfig = {
-                    items: [
-                        {
-                            label: 'Reports',
-                            destination: '<?= $baseUrl ?>/reports<?= $suffix ?>'
-                        },
-                        {
-                            label: 'Chart Analysis',
-                            destination: '<?= $baseUrl ?>/chart-analysis<?= $suffix ?>'
-                        },
-                        {
-                            label: 'Schedule',
-                            destination: '<?= $baseUrl ?>/schedule<?= $suffix ?>'
-                        },
-                        {
-                            label: 'Settings',
-                            destination: '<?= $baseUrl ?>/settings<?= $suffix ?>'
-                        }
-                    ]
-                };
-                
-                // Try to set navigation
-                if (app.navigation) {
-                    app.navigation.set(navConfig);
-                    console.log('ReportPro: Navigation menu configured');
-                } else {
-                    console.warn('ReportPro: Navigation API not available');
-                }
+                // Note: Navigation menu is handled by the horizontal nav bar at the top
+                // Shopify sidebar navigation requires additional Partner Dashboard configuration
                 
             } catch (e) {
                 console.error('ReportPro: Failed to initialize App Bridge:', e);
