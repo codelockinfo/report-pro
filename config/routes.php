@@ -13,6 +13,7 @@ $router->get('/', 'DashboardController@index');
 $router->get('/dashboard', 'DashboardController@index');
 
 // Reports routes
+$router->get('/report', 'ReportController@singleReport');
 $router->get('/reports', 'ReportController@index');
 $router->get('/reports/create', 'ReportController@create');
 $router->post('/reports/store', 'ReportController@store');

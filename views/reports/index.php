@@ -8,6 +8,10 @@ $queryParams = $_GET;
 unset($queryParams['url']);
 $queryString = http_build_query($queryParams);
 $suffix = $queryString ? '?' . $queryString : '';
+
+// Get base URL for subdirectory support
+$appUrl = getenv('APP_URL') ?: 'http://localhost/report-pro';
+$baseUrl = rtrim($appUrl, '/');
 ?>
 
 <?php include __DIR__ . '/../partials/header.php'; ?>
@@ -88,9 +92,9 @@ $suffix = $queryString ? '?' . $queryString : '';
         background: #303030;
         color: white;
         border: none;
-        padding: 4px 12px;
-        border-radius: 4px;
-        font-size: 12px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        font-size: 15px;
         text-decoration: none;
         float: right;
     }
@@ -107,7 +111,7 @@ $suffix = $queryString ? '?' . $queryString : '';
         <div class="report-card">
             <h3 class="card-title">
                 Custom reports
-                <a href="/reports/create<?= $suffix ?>" class="create-btn">Create custom report</a>
+                <a href="<?= $baseUrl ?>/reports/create<?= $suffix ?>" class="create-btn">Create custom report</a>
             </h3>
             <div class="card-content">
                 <?php if (empty($reports)): ?>
@@ -116,7 +120,7 @@ $suffix = $queryString ? '?' . $queryString : '';
                     <ul class="report-list">
                         <?php foreach ($reports as $report): ?>
                             <li class="report-item">
-                                <a href="/reports/<?= $report['id'] . $suffix ?>" class="report-link"><?= htmlspecialchars($report['name']) ?></a>
+                                <a href="<?= $baseUrl ?>/reports/<?= $report['id'] . $suffix ?>" class="report-link"><?= htmlspecialchars($report['name']) ?></a>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -134,7 +138,11 @@ $suffix = $queryString ? '?' . $queryString : '';
                 <ul class="report-list">
                     <?php foreach ($category['items'] as $item): ?>
                         <li class="report-item">
-                            <a href="<?= $item['url'] . $suffix ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
+                            <?php
+                            $sep = strpos($item['url'], '?') !== false ? '&' : '?';
+                            $fullUrl = $baseUrl . $item['url'] . ($queryString ? $sep . $queryString : '');
+                            ?>
+                            <a href="<?= $fullUrl ?>" class="report-link"><?= htmlspecialchars($item['name']) ?></a>
                         </li>
                     <?php endforeach; ?>
                 </ul>

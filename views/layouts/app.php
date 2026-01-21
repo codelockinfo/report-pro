@@ -12,6 +12,9 @@
     <script src="https://unpkg.com/@shopify/app-bridge@3.7.10/umd/index.js"></script>
     <script src="https://unpkg.com/@shopify/app-bridge-utils@3.5.1/umd/index.js"></script>
     
+    <!-- Chart.js for reports -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <style>
         body {
             margin: 0;
@@ -74,6 +77,37 @@
             var titleBar = TitleBar.create(app, {
                 title: '<?= $title ?? 'Report Pro' ?>',
                 breadcrumbs: <?= isset($breadcrumbs) ? json_encode($breadcrumbs) : 'null' ?>
+            });
+            
+            // Set up Navigation Menu
+            <?php
+            $appUrl = getenv('APP_URL') ?: 'http://localhost/report-pro';
+            $baseUrl = rtrim($appUrl, '/');
+            $queryParams = $_GET;
+            unset($queryParams['url']);
+            $queryString = http_build_query($queryParams);
+            $suffix = $queryString ? '?' . $queryString : '';
+            ?>
+            var NavigationMenu = actions.NavigationMenu;
+            var navMenu = NavigationMenu.create(app, {
+                items: [
+                    {
+                        label: 'Reports',
+                        destination: '<?= $baseUrl ?>/reports<?= $suffix ?>',
+                    },
+                    {
+                        label: 'Chart Analysis',
+                        destination: '<?= $baseUrl ?>/chart-analysis<?= $suffix ?>',
+                    },
+                    {
+                        label: 'Schedule',
+                        destination: '<?= $baseUrl ?>/schedule<?= $suffix ?>',
+                    },
+                    {
+                        label: 'Settings',
+                        destination: '<?= $baseUrl ?>/settings<?= $suffix ?>',
+                    }
+                ]
             });
             
             // Set up History to sync with Shopify URL

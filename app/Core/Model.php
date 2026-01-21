@@ -15,20 +15,20 @@ abstract class Model
 
     public function find($id)
     {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE {$this->primaryKey} = ?");
+        $stmt = $this->db->prepare("SELECT * FROM `{$this->table}` WHERE `{$this->primaryKey}` = ?");
         $stmt->execute([$id]);
         return $stmt->fetch();
     }
 
     public function findAll($conditions = [], $orderBy = null, $limit = null)
     {
-        $sql = "SELECT * FROM {$this->table}";
+        $sql = "SELECT * FROM `{$this->table}`";
         $params = [];
 
         if (!empty($conditions)) {
             $where = [];
             foreach ($conditions as $key => $value) {
-                $where[] = "{$key} = ?";
+                $where[] = "`{$key}` = ?";
                 $params[] = $value;
             }
             $sql .= " WHERE " . implode(" AND ", $where);
@@ -50,11 +50,11 @@ abstract class Model
     public function create($data)
     {
         try {
-            $fields = array_keys($data);
+            $fields = array_map(function($f) { return "`$f`"; }, array_keys($data));
             $values = array_values($data);
             $placeholders = array_fill(0, count($fields), '?');
 
-            $sql = "INSERT INTO {$this->table} (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
+            $sql = "INSERT INTO `{$this->table}` (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
             $stmt = $this->db->prepare($sql);
             $result = $stmt->execute($values);
             
@@ -85,10 +85,10 @@ abstract class Model
 
             $set = [];
             foreach ($fields as $field) {
-                $set[] = "{$field} = ?";
+                $set[] = "`{$field}` = ?";
             }
 
-            $sql = "UPDATE {$this->table} SET " . implode(', ', $set) . " WHERE {$this->primaryKey} = ?";
+            $sql = "UPDATE `{$this->table}` SET " . implode(', ', $set) . " WHERE `{$this->primaryKey}` = ?";
             $stmt = $this->db->prepare($sql);
             $result = $stmt->execute($values);
             

@@ -10,7 +10,7 @@ class BulkOperation extends Model
 
     public function findByOperationId($operationId)
     {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE operation_id = ?");
+        $stmt = $this->db->prepare("SELECT * FROM `{$this->table}` WHERE `operation_id` = ?");
         $stmt->execute([$operationId]);
         return $stmt->fetch();
     }

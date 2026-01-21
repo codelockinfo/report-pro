@@ -10,7 +10,7 @@ class ReportFilter extends Model
 
     public function findByReport($reportId)
     {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE report_id = ?");
+        $stmt = $this->db->prepare("SELECT * FROM `{$this->table}` WHERE `report_id` = ?");
         $stmt->execute([$reportId]);
         return $stmt->fetchAll();
     }
@@ -20,7 +20,7 @@ class ReportFilter extends Model
         foreach ($filters as $filter) {
             $this->create([
                 'report_id' => $reportId,
-                'filter_type' => $filter['type'],
+                'filter_type' => $filter['type'] ?? 'text',
                 'filter_field' => $filter['field'],
                 'filter_operator' => $filter['operator'],
                 'filter_value' => is_array($filter['value']) ? json_encode($filter['value']) : $filter['value']

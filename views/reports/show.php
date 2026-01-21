@@ -25,7 +25,7 @@ $suffix = $queryString ? '?' . $queryString : '';
         padding: 15px 0;
         color: #2c6ecb;
         text-decoration: none;
-        font-size: 13px;
+        font-size: 18px;
         margin-bottom: 10px;
     }
     .back-link:hover { text-decoration: underline; }

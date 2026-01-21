@@ -14,6 +14,13 @@ class ExportController extends Controller
         $reportId = $_POST['report_id'] ?? null;
         $format = $_POST['format'] ?? 'csv';
 
+        // Support for JSON input
+        if (!$reportId) {
+            $input = json_decode(file_get_contents('php://input'), true);
+            $reportId = $input['report_id'] ?? null;
+            $format = $input['format'] ?? 'csv';
+        }
+
         if (!$reportId) {
             $this->json(['error' => 'Report ID is required'], 400);
         }

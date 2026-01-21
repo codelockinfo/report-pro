@@ -10,7 +10,7 @@ class ReportColumn extends Model
 
     public function findByReport($reportId)
     {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE report_id = ? ORDER BY sort_order ASC");
+        $stmt = $this->db->prepare("SELECT * FROM `{$this->table}` WHERE `report_id` = ? ORDER BY `sort_order` ASC");
         $stmt->execute([$reportId]);
         return $stmt->fetchAll();
     }

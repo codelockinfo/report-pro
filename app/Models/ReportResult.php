@@ -10,8 +10,9 @@ class ReportResult extends Model
 
     public function findByReport($reportId, $limit = 1)
     {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE report_id = ? ORDER BY generated_at DESC LIMIT ?");
-        $stmt->execute([$reportId, $limit]);
+        $limit = intval($limit);
+        $stmt = $this->db->prepare("SELECT * FROM `{$this->table}` WHERE `report_id` = ? ORDER BY `generated_at` DESC LIMIT {$limit}");
+        $stmt->execute([$reportId]);
         return $limit == 1 ? $stmt->fetch() : $stmt->fetchAll();
     }
 
