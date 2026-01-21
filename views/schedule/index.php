@@ -1,5 +1,5 @@
 <?php
-$title = 'Scheduled Reports';
+$title = 'ReportPro - Easy Report';
 $currentRoute = '/schedule';
 ob_start();
 ?>

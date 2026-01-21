@@ -41,14 +41,19 @@ $queryParams = $_GET;
 unset($queryParams['url']);
 $queryString = http_build_query($queryParams);
 $suffix = $queryString ? '?' . $queryString : '';
+
+// Get base URL for subdirectory support
+$appUrl = getenv('APP_URL');
+if ($appUrl === false) $appUrl = '';
+$baseUrl = rtrim($appUrl, '/');
 ?>
 
 <div class="dashboard-header">
     <div class="header-nav">
-        <a href="/reports<?= $suffix ?>" class="header-link <?= ($currentRoute === '/reports') ? 'active' : '' ?>">Reports</a>
-        <a href="/chart-analysis<?= $suffix ?>" class="header-link <?= ($currentRoute === '/chart-analysis') ? 'active' : '' ?>">Chart analysis</a>
-        <a href="/schedule<?= $suffix ?>" class="header-link <?= ($currentRoute === '/schedule') ? 'active' : '' ?>">Schedule</a>
-        <a href="/settings<?= $suffix ?>" class="header-link <?= ($currentRoute === '/settings') ? 'active' : '' ?>">Settings</a>
+        <a href="<?= $baseUrl ?>/reports<?= $suffix ?>" class="header-link <?= ($currentRoute === '/reports') ? 'active' : '' ?>">Reports</a>
+        <a href="<?= $baseUrl ?>/chart-analysis<?= $suffix ?>" class="header-link <?= ($currentRoute === '/chart-analysis') ? 'active' : '' ?>">Chart analysis</a>
+        <a href="<?= $baseUrl ?>/schedule<?= $suffix ?>" class="header-link <?= ($currentRoute === '/schedule') ? 'active' : '' ?>">Schedule</a>
+        <a href="<?= $baseUrl ?>/settings<?= $suffix ?>" class="header-link <?= ($currentRoute === '/settings') ? 'active' : '' ?>">Settings</a>
     </div>
     <div class="header-right">
         <a href="#" class="header-link">Docs</a>

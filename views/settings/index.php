@@ -1,5 +1,5 @@
 <?php
-$title = 'Settings';
+$title = 'ReportPro - Easy Report';
 $currentRoute = '/settings';
 ob_start();
 ?>

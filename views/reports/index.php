@@ -21,7 +21,7 @@ $suffix = $queryString ? '?' . $queryString : '';
     
     /* Masonry Layout */
     .reports-grid {
-        column-count: 5;
+        column-count: 4;
         column-gap: 20px;
     }
     
@@ -53,7 +53,7 @@ $suffix = $queryString ? '?' . $queryString : '';
 
     /* Titles */
     .card-title {
-        font-size: 16px;
+        font-size: 22px;
         font-weight: 600;
         color: #212b36;
         margin: 0 0 15px 0;
@@ -77,7 +77,7 @@ $suffix = $queryString ? '?' . $queryString : '';
     .report-link {
         color: #2c6ecb;
         text-decoration: none;
-        font-size: 13px;
+        font-size: 16px;
     }
     .report-link:hover {
         text-decoration: underline;

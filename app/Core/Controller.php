@@ -80,6 +80,12 @@ class Controller
 
     protected function redirect($url)
     {
+        // If URL is relative (starts with /), prepend APP_URL
+        if (strpos($url, '/') === 0 && strpos($url, 'http') !== 0) {
+            $appUrl = rtrim($this->config['app_url'], '/');
+            $url = $appUrl . $url;
+        }
+        
         header("Location: {$url}");
         exit;
     }
@@ -141,6 +147,11 @@ class Controller
 
     protected function requireAuth()
     {
+        // Bypass auth for local development
+        if (getenv('APP_ENV') === 'local') {
+            return $this->mockLocalAuth();
+        }
+
         error_log("Controller::requireAuth - Checking authentication");
         $shop = $this->getShop();
         
@@ -158,6 +169,27 @@ class Controller
         }
         
         error_log("Controller::requireAuth - Shop authenticated: {$shop['shop_domain']}");
+        return $shop;
+    }
+
+    protected function mockLocalAuth()
+    {
+        $shopDomain = 'cls-rakshita.myshopify.com';
+        $shopModel = new \App\Models\Shop();
+        $shop = $shopModel->findByDomain($shopDomain);
+
+        if (!$shop) {
+            // Should not happen if database is imported correctly, but fallback just in case
+            die("Local Auth Error: Test shop '{$shopDomain}' not found in database. Please import the production database.");
+        }
+
+        // Mock session
+        $this->setSession([
+            'shop' => $shop['shop_domain'],
+            'shop_id' => $shop['id'],
+            'access_token' => $shop['access_token']
+        ]);
+
         return $shop;
     }
 

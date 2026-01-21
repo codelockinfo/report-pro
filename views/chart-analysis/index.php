@@ -1,5 +1,5 @@
 <?php
-$title = 'Chart analysis';
+$title = 'ReportPro - Easy Report';
 $currentRoute = '/chart-analysis';
 ob_start();
 ?>
@@ -108,7 +108,7 @@ ob_start();
         border: 1px solid #dfe3e8;
         border-radius: 4px;
         font-weight: 600;
-        font-size: 13px;
+        font-size: 15px;
         background: #f9fafb;
     }
     .field-search {
@@ -132,7 +132,7 @@ ob_start();
     }
     .field-item {
         padding: 6px 15px;
-        font-size: 13px;
+        font-size: 15px;
         color: #212b36;
         cursor: grab;
         display: flex;

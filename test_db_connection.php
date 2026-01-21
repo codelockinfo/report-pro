@@ -60,7 +60,7 @@ $dbPass = getenv('DB_PASSWORD') ?: '';
         <strong>Password:</strong> <?= $dbPass ? '***' . substr($dbPass, -2) : '<em>not set</em>' ?><br>
     </div>
 
-    <?php if (empty($dbUser) || empty($dbPass)): ?>
+    <?php if (empty($dbUser)): ?>
         <div class="error">
             <strong>❌ Error:</strong> Database username or password is not set in .env file!
             <br><br>
