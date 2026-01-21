@@ -1,5 +1,5 @@
 <?php
-$title = 'Reports';
+$title = 'ReportPro - Easy Report';
 $currentRoute = '/reports';
 ob_start();
 
