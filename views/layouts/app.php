@@ -11,8 +11,8 @@
     <!-- Shopify Polaris CSS -->
     <link rel="stylesheet" href="https://unpkg.com/@shopify/polaris@10.0.0/build/esm/styles.css" />
     
-    <!-- App Bridge 3.x - Stable version for PHP apps -->
-    <script src="https://unpkg.com/@shopify/app-bridge@3.7.10/umd/index.js"></script>
+    <!-- Shopify App Bridge (Latest) - Auto-initializes and renders ui-nav-menu in sidebar -->
+    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     
     <!-- Chart.js for reports -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -57,41 +57,28 @@
     
     
     <script>
-        // Get parameters from URL
-        var urlParams = new URLSearchParams(window.location.search);
-        var host = urlParams.get('host');
-        var shop = urlParams.get('shop') || '<?= $shop['shop_domain'] ?? '' ?>';
+        // App Bridge Latest - Auto-initializes from meta tag
+        // The ui-nav-menu element will be automatically detected and rendered in the sidebar
         
-        // Debugging
-        if (!host) {
-            console.error("ReportPro: Host parameter is missing! App Bridge cannot initialize.");
-        } else {
-            console.log("ReportPro: Initializing App Bridge 3.x with host:", host);
-        }
-
-        // Initialize App Bridge 3.x
-        if (host && window['app-bridge']) {
-            try {
-                var AppBridge = window['app-bridge'];
-                var createApp = AppBridge.createApp || AppBridge.default;
-                
-                var app = createApp({
-                    apiKey: '<?= $config['shopify']['api_key'] ?>',
-                    host: host,
-                    forceRedirect: true
-                });
-                
-                console.log('ReportPro: App Bridge initialized successfully');
-                console.log('ReportPro: Sidebar navigation is handled by ui-nav-menu element');
-                
-                // Note: The ui-nav-menu element above automatically creates the sidebar navigation
-                // Shopify's App Bridge host interprets the ui-nav-menu and renders it in the Admin
-                // The active state is automatically managed based on the current URL
-                
-            } catch (e) {
-                console.error('ReportPro: Failed to initialize App Bridge:', e);
+        // Optional: Manual initialization for additional features
+        document.addEventListener('DOMContentLoaded', function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var host = urlParams.get('host');
+            var shop = urlParams.get('shop') || '<?= $shop['shop_domain'] ?? '' ?>';
+            
+            if (!host) {
+                console.warn("ReportPro: Host parameter is missing. App Bridge may not initialize properly.");
+            } else {
+                console.log("ReportPro: App Bridge auto-initializing with host:", host);
+                console.log("ReportPro: ui-nav-menu will render in sidebar automatically");
             }
-        }
+            
+            // Note: The latest App Bridge automatically:
+            // 1. Detects the ui-nav-menu element
+            // 2. Renders it in the LEFT SIDEBAR (desktop) or title bar dropdown (mobile)
+            // 3. Manages active state based on current URL
+            // 4. No manual initialization required!
+        });
     </script>
 </body>
 </html>
