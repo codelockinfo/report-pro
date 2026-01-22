@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $title ?? 'Report Pro' ?> - Shopify App</title>
     
+    <!-- Shopify API Key for App Bridge Host -->
+    <meta name="shopify-api-key" content="<?= $config['shopify']['api_key'] ?>">
+    
     <!-- Shopify Polaris CSS -->
     <link rel="stylesheet" href="https://unpkg.com/@shopify/polaris@10.0.0/build/esm/styles.css" />
     
@@ -28,9 +31,30 @@
     </style>
 </head>
 <body>
+    <!-- 
+        Shopify Navigation Menu (ui-nav-menu)
+        - The first <a> with rel="home" is REQUIRED and configures the home route
+        - It is NOT rendered as a visible link in the sidebar
+        - All subsequent <a> tags create the sidebar navigation menu
+        - Shopify's App Bridge host automatically handles the active state based on current URL
+        - Only flat lists are supported (no nested items)
+    -->
+    <ui-nav-menu>
+        <!-- Required: Home route configuration (not rendered as a link) -->
+        <a href="/" rel="home">Report Pro</a>
+        
+        <!-- Visible navigation items -->
+        <a href="/dashboard">Dashboard</a>
+        <a href="/reports">Reports</a>
+        <a href="/chart-analysis">Chart Analysis</a>
+        <a href="/schedule">Schedule</a>
+        <a href="/settings">Settings</a>
+    </ui-nav-menu>
+    
     <div id="app">
         <?= $content ?>
     </div>
+    
     
     <script>
         // Get parameters from URL
@@ -58,9 +82,11 @@
                 });
                 
                 console.log('ReportPro: App Bridge initialized successfully');
+                console.log('ReportPro: Sidebar navigation is handled by ui-nav-menu element');
                 
-                // Note: Navigation menu is handled by the horizontal nav bar at the top
-                // Shopify sidebar navigation requires additional Partner Dashboard configuration
+                // Note: The ui-nav-menu element above automatically creates the sidebar navigation
+                // Shopify's App Bridge host interprets the ui-nav-menu and renders it in the Admin
+                // The active state is automatically managed based on the current URL
                 
             } catch (e) {
                 console.error('ReportPro: Failed to initialize App Bridge:', e);
