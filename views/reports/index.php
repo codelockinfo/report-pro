@@ -335,45 +335,48 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     .Polaris-Tabs {
         background: white;
         border-bottom: 1px solid #e1e3e5;
-        padding: 8px;
+        padding: 8px 12px;
+        display: block;
     }
     
     .Polaris-Tabs__Wrapper {
-        display: flex;
-        gap: 0.5rem;
+        display: inline-flex !important;
+        gap: 8px !important;
         border-bottom: none;
-        justify-content: flex-start;
+        justify-content: flex-start !important;
         align-items: center;
         flex-wrap: nowrap;
+        width: auto !important;
     }
     
     .Polaris-Tabs__Tab {
-        padding: 0.5rem 0.75rem;
-        color: #202223;
-        text-decoration: none;
-        font-size: 12px;
-        font-weight: 500;
-        background: #f6f6f7;
-        border-radius: 0.5rem;
+        padding: 4px 12px !important;
+        color: #202223 !important;
+        text-decoration: none !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        background: #f6f6f7 !important;
+        border-radius: 8px !important;
         transition: all 0.15s ease;
-        display: inline-flex !important; /* Force inline flex */
-        width: fit-content !important; /* Width as per content */
-        flex: 0 0 auto !important; /* Prevent stretching (override Polaris) */
-        max-width: max-content;
+        display: inline-flex !important;
+        width: auto !important;
+        min-width: 0 !important;
+        flex: 0 0 auto !important;
         align-items: center;
-        gap: 0.375rem;
+        gap: 6px !important;
         white-space: nowrap;
         border: none;
         cursor: pointer;
+        margin: 0 !important;
     }
     
     .Polaris-Tabs__Tab:hover {
-        background: #e4e5e7;
+        background: #e4e5e7 !important;
     }
     
     .Polaris-Tabs__Tab--selected {
-        background: #e4e5e7;
-        color: #202223;
+        background: #e4e5e7 !important;
+        color: #202223 !important;
     }
     
     .Polaris-Badge {
