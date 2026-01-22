@@ -78,7 +78,8 @@ if (!empty($reports)) {
             'category' => $displayCategory,
             'url' => $baseUrl . '/reports/' . $report['id'] . $suffix,
             'is_custom' => $isDbCustom,
-            'is_favorite' => false,
+            'is_favorite' => (isset($report['is_favorite']) && $report['is_favorite'] == 1),
+            'type' => !$isDbCustom ? $dbCategory : null,
             'last_viewed' => timeAgo($report['last_viewed_at'] ?? null),
             'views' => ($report['view_count'] ?? 0) > 0 ? $report['view_count'] : ''
         ];
@@ -105,6 +106,7 @@ foreach ($dashboardCategories as $category) {
             'url' => $fullUrl,
             'is_custom' => false,
             'is_favorite' => false,
+            'type' => $type,
             'last_viewed' => '',
             'views' => ''
         ];
@@ -483,7 +485,22 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     
     .Polaris-IndexTable__TableRow:hover {
         background: #f7f8f9;
-        cursor: pointer;
+    }
+
+    /* Prevent any row-level overlay from blocking clicks in the favorite column */
+    .Polaris-IndexTable__TableRow::after,
+    .Polaris-IndexTable__TableRow::before {
+        display: none !important;
+        pointer-events: none !important;
+    }
+
+    .Polaris-IndexTable__TableRow td:first-child {
+        position: relative;
+        z-index: 100; /* Extremely high z-index */
+        pointer-events: auto !important;
+        width: 48px;
+        min-width: 48px;
+        padding-left: 1rem !important;
     }
     
     .Polaris-IndexTable__TableRow td {
@@ -497,23 +514,44 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         padding-left: 1.5rem;
     }
     
-    /* Star Icon */
-    .star-icon {
+    /* Star Icon Button */
+    .star-button {
+        background: none;
+        border: none;
+        padding: 4px;
         cursor: pointer;
-        color: #8c9196; /* Lighter gray for inactive star */
-        width: 1.25rem;
-        height: 1.25rem;
-        transition: all 0.15s ease;
-        display: block;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.2s;
+        color: #8c9196;
+        margin-right: 8px;
+        position: relative;
+        z-index: 10;
+        pointer-events: auto !important;
     }
     
-    .star-icon:hover {
+    .star-button:hover {
+        background: rgba(0,0,0,0.08); /* Darker hover */
         color: #5c5f62;
         transform: scale(1.1);
     }
     
-    .star-icon.active {
-        color: #ffc107; /* Yellow for active */
+    .star-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+        transition: all 0.15s ease;
+        pointer-events: none;
+    }
+    
+    .star-button.active .star-icon {
+        color: #FFB100; /* Richer gold */
+        fill: #FFB100;
+    }
+    
+    .star-button.active {
+        color: #FFB100;
     }
     
     /* Link styling */
@@ -707,7 +745,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
                     <a href="<?= $baseUrl ?>/reports?tab=3<?= $queryStringWithoutTab ? '&' . $queryStringWithoutTab : '' ?>" 
                        class="Polaris-Tabs__Tab <?= $currentTab === '3' ? 'Polaris-Tabs__Tab--selected' : '' ?>">
                         My favorites
-                        <span class="Polaris-Badge"><?= $favoritesCount ?></span>
+                        <span id="favorites-count-badge" class="Polaris-Badge"><?= $favoritesCount ?></span>
                     </a>
                 </div>
             </div>
@@ -754,12 +792,12 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
                     <h2 class="Polaris-DisplayText">No reports found</h2>
                     <div class="Polaris-TextContainer">
                         <p>
-                            <?php if ($currentTab === 'favorites'): ?>
-                                Star your favorite reports to see them here.
-                            <?php elseif ($currentTab === 'custom'): ?>
+                            <?php if ($currentTab === '3' || $currentTab === 'favorites'): ?>
+                                Please add reports to favourite to get started.
+                            <?php elseif ($currentTab === '2' || $currentTab === 'custom'): ?>
                                 Create your first custom report to get started.
                             <?php else: ?>
-                                Try adjusting your search or filters.
+                                Please create a report to get started.
                             <?php endif; ?>
                         </p>
                     </div>
@@ -780,15 +818,18 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
                     <?php foreach ($filteredReports as $report): ?>
                         <tr class="Polaris-IndexTable__TableRow">
                             <td>
-                                <svg class="star-icon <?= $report['is_favorite'] ? 'active' : '' ?>" 
-                                     viewBox="0 0 20 20" 
-                                     fill="<?= $report['is_favorite'] ? 'currentColor' : 'none' ?>"
-                                     stroke="currentColor"
-                                     stroke-width="1.5"
-                                     data-report-id="<?= $report['id'] ?? '' ?>"
-                                     onclick="toggleFavorite(this)">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
+                                <span class="star-button <?= $report['is_favorite'] ? 'active' : '' ?>" 
+                                      data-report-id="<?= $report['id'] ?? '' ?>"
+                                      data-report-type="<?= $report['type'] ?? '' ?>"
+                                      onclick="toggleFavorite(event, this)">
+                                    <svg class="star-icon" 
+                                         viewBox="0 0 20 20" 
+                                         fill="<?= $report['is_favorite'] ? 'currentColor' : 'none' ?>"
+                                         stroke="currentColor"
+                                         stroke-width="1.5">
+                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                    </svg>
+                                </span>
                             </td>
                             <td>
                                 <a href="<?= $report['url'] ?>" class="Polaris-Link">
@@ -934,23 +975,88 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         });
     }
     
-    // Toggle favorite functionality
-    function toggleFavorite(element) {
-        const reportId = element.getAttribute('data-report-id');
-        const isActive = element.classList.contains('active');
-        
-        // Toggle visual state immediately
-        if (isActive) {
-            element.classList.remove('active');
-            element.setAttribute('fill', 'none');
-        } else {
-            element.classList.add('active');
-            element.setAttribute('fill', 'currentColor');
+    // Expose toggleFavorite globally for the inline onclick
+    window.toggleFavorite = function(event, element) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
         }
         
-        // TODO: Send AJAX request to save favorite state
-        console.log('Toggle favorite for report:', reportId, 'New state:', !isActive);
-    }
+        const reportId = element.getAttribute('data-report-id');
+        const reportType = element.getAttribute('data-report-type');
+        const isActive = element.classList.contains('active');
+        const icon = element.querySelector('.star-icon');
+        
+        // Toggle visual state immediately for better UX
+        const badge = document.getElementById('favorites-count-badge');
+        let currentCount = parseInt(badge.textContent) || 0;
+
+        if (isActive) {
+            element.classList.remove('active');
+            if (icon) icon.setAttribute('fill', 'none');
+            // Update badge count
+            if (badge) badge.textContent = Math.max(0, currentCount - 1);
+        } else {
+            element.classList.add('active');
+            if (icon) icon.setAttribute('fill', 'currentColor');
+            // Update badge count
+            if (badge) badge.textContent = currentCount + 1;
+        }
+        
+        // Use the suffix provided by PHP as a fallback for authentication params
+        const authParams = window.location.search || '<?= $suffix ?>';
+        
+        // Send AJAX request to save favorite state
+        fetch('<?= $baseUrl ?>/reports/toggle-favorite' + authParams, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: reportId || null,
+                type: reportType || null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.report_id && !reportId) {
+                    element.setAttribute('data-report-id', data.report_id);
+                }
+            } else {
+                // Revert visual state on error
+                if (isActive) {
+                    element.classList.add('active');
+                    if (icon) icon.setAttribute('fill', 'currentColor');
+                    if (badge) badge.textContent = currentCount;
+                } else {
+                    element.classList.remove('active');
+                    if (icon) icon.setAttribute('fill', 'none');
+                    if (badge) badge.textContent = currentCount;
+                }
+                alert('Error: ' + (data.error || 'Failed to update favorite status'));
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling favorite:', error);
+            // Revert visual state on error
+            if (isActive) {
+                element.classList.add('active');
+                if (icon) icon.setAttribute('fill', 'currentColor');
+                if (badge) badge.textContent = currentCount;
+            } else {
+                element.classList.remove('active');
+                if (icon) icon.setAttribute('fill', 'none');
+                if (badge) badge.textContent = currentCount;
+            }
+        });
+    };
+
+    // Keep click delegation as an additional layer of certainty
+    document.addEventListener('click', function(event) {
+        const starButton = event.target.closest('.star-button');
+        if (!starButton) return;
+    });
 </script>
 
 <?php

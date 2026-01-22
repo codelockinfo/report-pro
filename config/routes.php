@@ -23,6 +23,7 @@ $router->post('/reports/{id}/update', 'ReportController@update');
 $router->post('/reports/{id}/delete', 'ReportController@delete');
 $router->post('/reports/{id}/run', 'ReportController@run');
 $router->get('/reports/{id}/data', 'ReportController@getData');
+$router->post('/reports/toggle-favorite', 'ReportController@toggleFavorite');
 
 // Predefined reports
 $router->get('/reports/predefined/{type}', 'ReportController@predefined');

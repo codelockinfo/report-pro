@@ -89,11 +89,6 @@ class ReportController extends Controller
                 $updateData['query_config'] = json_encode($reportConfig['config']);
                 $needsUpdate = true;
             }
-            
-            if ($existing[0]['name'] !== $reportConfig['name']) {
-                $updateData['name'] = $reportConfig['name'];
-                $needsUpdate = true;
-            }
 
             if ($existing[0]['description'] !== $reportConfig['description']) {
                 $updateData['description'] = $reportConfig['description'];
@@ -127,10 +122,120 @@ class ReportController extends Controller
         ]);
     }
 
+    public function toggleFavorite()
+    {
+        $shop = $this->requireAuth();
+        $reportModel = new Report();
+        
+        $json = json_decode(file_get_contents('php://input'), true);
+        $id = $json['id'] ?? null;
+        $type = $json['type'] ?? null;
+        
+        $reportId = null;
+        $report = null;
+
+        if ($id) {
+            $report = $reportModel->find($id);
+            if ($report && $report['shop_id'] == $shop['id']) {
+                $reportId = $id;
+            }
+        } elseif ($type) {
+            // Check if predefined report exists in DB
+            $existing = $reportModel->findAll([
+                'shop_id' => $shop['id'],
+                'category' => $type,
+                'is_custom' => 0
+            ]);
+            
+            if (!empty($existing)) {
+                $report = $existing[0];
+                $reportId = $report['id'];
+            } else {
+                // Create it first
+                $predefinedReports = $this->getPredefinedReports();
+                if (isset($predefinedReports[$type])) {
+                    $config = $predefinedReports[$type];
+                    $reportId = $reportModel->create([
+                        'shop_id' => $shop['id'],
+                        'name' => $config['name'],
+                        'category' => $type,
+                        'description' => $config['description'],
+                        'query_config' => json_encode($config['config']),
+                        'is_custom' => 0,
+                        'is_favorite' => 0 // Will toggle below
+                    ]);
+                    $report = ['is_favorite' => 0]; // Mock for toggle logic
+                }
+            }
+        }
+
+        if (!$reportId) {
+            return $this->json(['success' => false, 'error' => 'Report not found'], 404);
+        }
+        
+        $isFavorite = $report['is_favorite'] ? 0 : 1;
+        $result = $reportModel->update($reportId, ['is_favorite' => $isFavorite]);
+        
+        if ($result) {
+            return $this->json(['success' => true, 'is_favorite' => $isFavorite, 'report_id' => $reportId]);
+        } else {
+            return $this->json(['success' => false, 'error' => 'Failed to update favorite status'], 500);
+        }
+    }
+
     private function getDashboardCategories()
     {
         return [
-            'agreement_lines' => [
+            'customers' => [
+                'title' => 'Customers',
+                'items' => [
+                    ['name' => 'Customers', 'url' => '/report?type=customers'],
+                    ['name' => 'Total customers per country', 'url' => '/report?type=customers_country']
+                ]
+            ],
+            'products' => [
+                'title' => 'Products',
+                'items' => [
+                    ['name' => 'All products', 'url' => '/report?type=all_products'],
+                    ['name' => 'Total products by type', 'url' => '/report?type=products_type'],
+                    ['name' => 'Total products by vendor', 'url' => '/report?type=products_vendor']
+                ]
+            ],
+            'product_variants' => [
+                'title' => 'Product variants',
+                'items' => [
+                    ['name' => 'Inventory', 'url' => '/report?type=inventory'],
+                    ['name' => 'Inventory by product', 'url' => '/report?type=inventory_product'],
+                    ['name' => 'Inventory by product type', 'url' => '/report?type=inventory_type'],
+                    ['name' => 'Inventory by SKU', 'url' => '/report?type=inventory_sku'],
+                    ['name' => 'Inventory by variant', 'url' => '/report?type=inventory_variant'],
+                    ['name' => 'Inventory by vendor', 'url' => '/report?type=inventory_vendor'],
+                    ['name' => 'Pending fulfillments', 'url' => '/report?type=pending_fulfillments_var'],
+                    ['name' => 'Total inventory summary', 'url' => '/report?type=total_inventory'],
+                    ['name' => 'Variant costs', 'url' => '/report?type=variant_costs'],
+                    ['name' => 'Variants without cost', 'url' => '/report?type=variants_no_cost']
+                ]
+            ],
+            'payouts' => [
+                'title' => 'Payouts',
+                'items' => [
+                    ['name' => 'Payout summary', 'url' => '/report?type=payout_summary']
+                ]
+            ],
+            'disputes' => [
+                'title' => 'Disputes',
+                'items' => [
+                    ['name' => 'Monthly disputes', 'url' => '/report?type=monthly_disputes'],
+                    ['name' => 'Pending disputes', 'url' => '/report?type=pending_disputes']
+                ]
+            ],
+            'market_regions' => [
+                'title' => 'Market regions',
+                'items' => [
+                    ['name' => 'Markets', 'url' => '/report?type=markets']
+                ]
+            ],
+            'sales' => [
                 'title' => 'Sales',
                 'items' => [
                     ['name' => 'All-time sales', 'url' => '/report?type=all_time_sales'],
@@ -197,6 +302,29 @@ class ReportController extends Controller
                     ['name' => 'Total orders by day and hour', 'url' => '/report?type=orders_day_hour']
                 ]
             ],
+            'gift_cards' => [
+                'title' => 'Gift cards',
+                'items' => [
+                    ['name' => 'Active gift cards', 'url' => '/report?type=active_gift_cards'],
+                    ['name' => 'Monthly issued gift cards by app', 'url' => '/report?type=gift_cards_app'],
+                    ['name' => 'Monthly issued gift cards by source', 'url' => '/report?type=gift_cards_source'],
+                    ['name' => 'Monthly issued gift cards by user', 'url' => '/report?type=gift_cards_user'],
+                    ['name' => 'Total value issued by user over time', 'url' => '/report?type=gift_cards_val_user']
+                ]
+            ],
+            'transaction_fees' => [
+                'title' => 'Transaction fees',
+                'items' => [
+                    ['name' => 'Monthly transaction fees', 'url' => '/report?type=monthly_fees'],
+                    ['name' => 'Transaction fee details', 'url' => '/report?type=fee_details']
+                ]
+            ],
+            'users' => [
+                'title' => 'Users',
+                'items' => [
+                    ['name' => 'Users', 'url' => '/report?type=users_list']
+                ]
+            ],
             'transactions' => [
                 'title' => 'Transactions',
                 'items' => [
@@ -213,62 +341,6 @@ class ReportController extends Controller
                     ['name' => 'Volume per payment gateway', 'url' => '/report?type=volume_gateway']
                 ]
             ],
-            'product_variants' => [
-                'title' => 'Product variants',
-                'items' => [
-                    ['name' => 'Inventory', 'url' => '/report?type=inventory'],
-                    ['name' => 'Inventory by product', 'url' => '/report?type=inventory_product'],
-                    ['name' => 'Inventory by product type', 'url' => '/report?type=inventory_type'],
-                    ['name' => 'Inventory by SKU', 'url' => '/report?type=inventory_sku'],
-                    ['name' => 'Inventory by variant', 'url' => '/report?type=inventory_variant'],
-                    ['name' => 'Inventory by vendor', 'url' => '/report?type=inventory_vendor'],
-                    ['name' => 'Pending fulfillments', 'url' => '/report?type=pending_fulfillments_var'],
-                    ['name' => 'Total inventory summary', 'url' => '/report?type=total_inventory'],
-                    ['name' => 'Variant costs', 'url' => '/report?type=variant_costs'],
-                    ['name' => 'Variants without cost', 'url' => '/report?type=variants_no_cost']
-                ]
-            ],
-            'disputes' => [
-                'title' => 'Disputes',
-                'items' => [
-                    ['name' => 'Monthly disputes', 'url' => '/report?type=monthly_disputes'],
-                    ['name' => 'Pending disputes', 'url' => '/report?type=pending_disputes']
-                ]
-            ],
-            'users' => [
-                'title' => 'Users',
-                'items' => [
-                    ['name' => 'Users', 'url' => '/report?type=users_list']
-                ]
-            ],
-            'payout_transactions' => [
-                'title' => 'Payout transactions',
-                'items' => [
-                    ['name' => 'Payout details', 'url' => '/report?type=payout_details'],
-                    ['name' => 'Pending payout details', 'url' => '/report?type=pending_payouts']
-                ]
-            ],
-            'market_regions' => [
-                'title' => 'Market regions',
-                'items' => [
-                    ['name' => 'Markets', 'url' => '/report?type=markets']
-                ]
-            ],
-            'customers' => [
-                'title' => 'Customers',
-                'items' => [
-                    ['name' => 'Customers', 'url' => '/report?type=customers'],
-                    ['name' => 'Total customers per country', 'url' => '/report?type=customers_country']
-                ]
-            ],
-            'products' => [
-                'title' => 'Products',
-                'items' => [
-                    ['name' => 'All products', 'url' => '/report?type=all_products'],
-                    ['name' => 'Total products by type', 'url' => '/report?type=products_type'],
-                    ['name' => 'Total products by vendor', 'url' => '/report?type=products_vendor']
-                ]
-            ],
             'inventory_levels' => [
                 'title' => 'Inventory levels',
                 'items' => [
@@ -280,16 +352,6 @@ class ReportController extends Controller
                     ['name' => 'Quantity by location by variant', 'url' => '/report?type=qty_loc_var']
                 ]
             ],
-            'gift_cards' => [
-                'title' => 'Gift cards',
-                'items' => [
-                    ['name' => 'Active gift cards', 'url' => '/report?type=active_gift_cards'],
-                    ['name' => 'Monthly issued gift cards by app', 'url' => '/report?type=gift_cards_app'],
-                    ['name' => 'Monthly issued gift cards by source', 'url' => '/report?type=gift_cards_source'],
-                    ['name' => 'Monthly issued gift cards by user', 'url' => '/report?type=gift_cards_user'],
-                    ['name' => 'Total value issued by user over time', 'url' => '/report?type=gift_cards_val_user']
-                ]
-            ],
             'draft_order_lines' => [
                 'title' => 'Draft order lines',
                 'items' => [
@@ -297,23 +359,17 @@ class ReportController extends Controller
                     ['name' => 'Pending draft orders by product variant', 'url' => '/report?type=pending_drafts_var']
                 ]
             ],
-            'payouts' => [
-                'title' => 'Payouts',
+            'payout_transactions' => [
+                'title' => 'Payout transactions',
                 'items' => [
-                    ['name' => 'Payout summary', 'url' => '/report?type=payout_summary']
+                    ['name' => 'Payout details', 'url' => '/report?type=payout_details'],
+                    ['name' => 'Pending payout details', 'url' => '/report?type=pending_payouts']
                 ]
             ],
             'line_item_attributed_staffs' => [
                 'title' => 'Line item attributed staffs',
                 'items' => [
                     ['name' => 'Monthly sales attribution by staff', 'url' => '/report?type=sales_staff']
-                ]
-            ],
-            'transaction_fees' => [
-                'title' => 'Transaction fees',
-                'items' => [
-                    ['name' => 'Monthly transaction fees', 'url' => '/report?type=monthly_fees'],
-                    ['name' => 'Transaction fee details', 'url' => '/report?type=fee_details']
                 ]
             ],
             'collects' => [
@@ -537,7 +593,6 @@ class ReportController extends Controller
             $reportId = $existing[0]['id'];
             // Update config in case it changed in code (like adding columns)
             $reportModel->update($reportId, [
-                'name' => $reportConfig['name'],
                 'description' => $reportConfig['description'],
                 'query_config' => json_encode($reportConfig['config'])
             ]);
@@ -566,10 +621,12 @@ class ReportController extends Controller
             'line_item_attributed_staffs', 'sales_staff'
         ];
 
+        $names = $this->getReportNamesMapping();
+
         foreach ($orderReports as $type) {
             $reports[$type] = [
-                'name' => ucwords(str_replace('_', ' ', $type)),
-                'description' => 'Report for ' . str_replace('_', ' ', $type),
+                'name' => $names[$type] ?? ucwords(str_replace('_', ' ', $type)),
+                'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'orders',
                     'columns' => ['id', 'name', 'created_at', 'total_price', 'financial_status', 'fulfillment_status', 'country']
@@ -648,10 +705,11 @@ class ReportController extends Controller
             'inv_loc_prod', 'inv_loc_type', 'inv_loc_var', 'inv_loc_vendor', 'qty_loc_var', 'pending_drafts_var'
         ];
 
+        $names = $this->getReportNamesMapping();
         foreach ($productReports as $type) {
             $reports[$type] = [
-                'name' => ucwords(str_replace('_', ' ', $type)),
-                'description' => 'Report for ' . str_replace('_', ' ', $type),
+                'name' => $names[$type] ?? ucwords(str_replace('_', ' ', $type)),
+                'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'products',
                     'columns' => ['id', 'title', 'product_type', 'vendor', 'created_at', 'total_inventory', 'status']
@@ -673,10 +731,11 @@ class ReportController extends Controller
             'customers', 'customers_country', 'users_list', 'markets'
         ];
 
+        $names = $this->getReportNamesMapping();
         foreach ($customerReports as $type) {
             $reports[$type] = [
-                'name' => ucwords(str_replace('_', ' ', $type)),
-                'description' => 'Report for ' . str_replace('_', ' ', $type),
+                'name' => $names[$type] ?? ucwords(str_replace('_', ' ', $type)),
+                'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'customers',
                     'columns' => ['id', 'full_name', 'email', 'created_at', 'orders_count', 'total_spent', 'country', 'accepts_marketing']
@@ -694,10 +753,11 @@ class ReportController extends Controller
             'payout_summary'
         ];
 
+        $names = $this->getReportNamesMapping();
         foreach ($transactionReports as $type) {
             $reports[$type] = [
-                'name' => ucwords(str_replace('_', ' ', $type)),
-                'description' => 'Report for ' . str_replace('_', ' ', $type),
+                'name' => $names[$type] ?? ucwords(str_replace('_', ' ', $type)),
+                'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'transactions',
                     'columns' => ['id', 'created_at', 'amount', 'currency_code', 'gateway', 'status', 'kind']
@@ -716,5 +776,118 @@ class ReportController extends Controller
         ];
 
         return $reports;
+    }
+
+    private function getReportNamesMapping()
+    {
+        return [
+            'customers' => 'Customers',
+            'customers_country' => 'Total customers per country',
+            'all_products' => 'All products',
+            'products_type' => 'Total products by type',
+            'products_vendor' => 'Total products by vendor',
+            'inventory' => 'Inventory',
+            'inventory_product' => 'Inventory by product',
+            'inventory_type' => 'Inventory by product type',
+            'inventory_sku' => 'Inventory by SKU',
+            'inventory_variant' => 'Inventory by variant',
+            'inventory_vendor' => 'Inventory by vendor',
+            'pending_fulfillments_var' => 'Pending fulfillments',
+            'total_inventory' => 'Total inventory summary',
+            'variant_costs' => 'Variant costs',
+            'variants_no_cost' => 'Variants without cost',
+            'payout_summary' => 'Payout summary',
+            'monthly_disputes' => 'Monthly disputes',
+            'pending_disputes' => 'Pending disputes',
+            'markets' => 'Markets',
+            'all_time_sales' => 'All-time sales',
+            'pending_fulfillment' => 'Items pending fulfillment',
+            'line_items' => 'Line item details',
+            'monthly_cohorts' => 'Monthly cohorts',
+            'monthly_sales' => 'Monthly sales',
+            'monthly_sales_channel' => 'Monthly sales by channel',
+            'sales_pos_location' => 'Monthly sales by POS location',
+            'sales_pos_user' => 'Monthly sales by POS user',
+            'sales_product' => 'Monthly sales by product',
+            'sales_type' => 'Monthly sales by product type',
+            'sales_variant' => 'Monthly sales by product variant',
+            'sales_shipping' => 'Monthly sales by shipping country, state',
+            'sales_sku' => 'Monthly sales by SKU',
+            'sales_vendor' => 'Monthly sales by vendor',
+            'refunds' => 'Refunds',
+            'sales_channel' => 'Sales by channel',
+            'sales_customer' => 'Sales by customer',
+            'sales_discount' => 'Sales by discount code',
+            'sales_by_product' => 'Sales by product',
+            'sales_by_type' => 'Sales by product type',
+            'sales_by_variant' => 'Sales by product variant',
+            'sales_ref_site' => 'Sales by referring site',
+            'sales_by_sku' => 'Sales by SKU',
+            'sales_by_vendor' => 'Sales by vendor',
+            'sales_over_time' => 'Sales over time',
+            'sales_gift_cards' => 'Sales over time - Gift cards',
+            'sales_time_channel' => 'Sales over time by channel',
+            'sales_time_pos' => 'Sales over time by POS location',
+            'sales_time_user' => 'Sales over time by POS user',
+            'sales_time_product' => 'Sales over time by product',
+            'sales_time_type' => 'Sales over time by product type',
+            'sales_time_variant' => 'Sales over time by product variant',
+            'sales_time_ref' => 'Sales over time by referring site',
+            'sales_time_sku' => 'Sales over time by SKU',
+            'sales_time_utm_medium' => 'Sales over time by UTM medium',
+            'sales_time_utm_source' => 'Sales over time by UTM source',
+            'sales_time_vendor' => 'Sales over time by vendor',
+            'tax_monthly' => 'Tax collected per month',
+            'aov_time' => 'Average order value over time',
+            'browser_share' => 'Browser share over time',
+            'device_share' => 'Device type share over time',
+            'new_vs_returning' => 'First-time vs returning customer orders',
+            'risk_orders' => 'High-risk orders',
+            'order_details' => 'Order details',
+            'orders_channel' => 'Orders by channel',
+            'orders_country' => 'Orders by country',
+            'orders_pos_loc' => 'Orders by POS location',
+            'orders_pos_user' => 'Orders by POS user',
+            'orders_ref_site' => 'Orders by referring site',
+            'orders_utm_campaign' => 'Orders by UTM campaign',
+            'orders_utm_medium' => 'Orders by UTM medium',
+            'orders_utm_source' => 'Orders by UTM source',
+            'orders_pending' => 'Orders pending fulfillment',
+            'total_value_channel' => 'Total order value by channel',
+            'total_value_country' => 'Total order value by country',
+            'total_value_ref' => 'Total order value by referring site',
+            'orders_day_hour' => 'Total orders by day and hour',
+            'active_gift_cards' => 'Active gift cards',
+            'gift_cards_app' => 'Monthly issued gift cards by app',
+            'gift_cards_source' => 'Monthly issued gift cards by source',
+            'gift_cards_user' => 'Monthly issued gift cards by user',
+            'gift_cards_val_user' => 'Total value issued by user over time',
+            'monthly_fees' => 'Monthly transaction fees',
+            'fee_details' => 'Transaction fee details',
+            'users_list' => 'Users',
+            'all_transactions' => 'All transactions',
+            'failed_transactions' => 'Failed transactions',
+            'gift_card_transactions' => 'Gift card transactions',
+            'gift_card_trans_time' => 'Gift card transactions over time',
+            'trans_monthly_gateway' => 'Monthly transactions by payment gateway',
+            'trans_monthly_user' => 'Monthly transactions per user',
+            'paypal_recon' => 'PayPal reconciliation',
+            'pending_trans' => 'Pending transactions',
+            'total_trans_value_time' => 'Total transactions value over time',
+            'total_trans_value_gateway' => 'Total transactions value per gateway over time',
+            'volume_gateway' => 'Volume per payment gateway',
+            'inv_location' => 'Inventory by location',
+            'inv_loc_prod' => 'Inventory by location by product',
+            'inv_loc_type' => 'Inventory by location by product type',
+            'inv_loc_var' => 'Inventory by location by variant',
+            'inv_loc_vendor' => 'Inventory by location by vendor',
+            'qty_loc_var' => 'Quantity by location by variant',
+            'pending_drafts' => 'Pending draft orders',
+            'pending_drafts_var' => 'Pending draft orders by product variant',
+            'payout_details' => 'Payout details',
+            'pending_payouts' => 'Pending payout details',
+            'sales_staff' => 'Monthly sales attribution by staff',
+            'products_collection' => 'Total Products by Collection'
+        ];
     }
 }
