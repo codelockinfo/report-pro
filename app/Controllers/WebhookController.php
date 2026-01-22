@@ -9,27 +9,48 @@ class WebhookController extends Controller
 {
     public function appUninstalled()
     {
-        $data = json_decode(file_get_contents('php://input'), true);
-        $shopDomain = $data['shop_domain'] ?? '';
+        // Get headers for logging and shop domain
+        $headers = getallheaders();
+        $shopHeader = $headers['X-Shopify-Shop-Domain'] ?? '';
+        
+        // Log the hit
+        error_log("=== WEBHOOK: APP_UNINSTALLED HIT ===");
+        error_log("Headers: " . json_encode($headers));
+        
+        $json = file_get_contents('php://input');
+        $data = json_decode($json, true);
+        error_log("Payload: " . $json);
+
+        // Try to get shop domain from multiple sources
+        $shopDomain = $shopHeader;
+        if (empty($shopDomain)) {
+            $shopDomain = $data['myshopify_domain'] ?? $data['domain'] ?? $data['shop_domain'] ?? '';
+        }
 
         if (empty($shopDomain)) {
+            error_log("WEBHOOK ERROR: Could not determine shop domain");
             http_response_code(400);
             exit;
         }
 
+        error_log("WEBHOOK: Processing uninstallation for shop: {$shopDomain}");
+
         // Verify webhook
         if (!$this->verifyWebhook()) {
+            error_log("WEBHOOK ERROR: Verification failed for shop: {$shopDomain}");
             http_response_code(401);
             exit;
         }
 
-        // Clean up shop data
+        // Mark shop as inactive
         $shopModel = new Shop();
         $shop = $shopModel->findByDomain($shopDomain);
         
         if ($shop) {
-            // Mark shop as inactive instead of deleting
-            $shopModel->update($shop['id'], ['is_active' => 0]);
+            $result = $shopModel->update($shop['id'], ['is_active' => 0]);
+            error_log("WEBHOOK SUCCESS: Shop {$shopDomain} (ID: {$shop['id']}) marked as inactive. Result: " . ($result ? 'OK' : 'FAIL'));
+        } else {
+            error_log("WEBHOOK WARNING: Shop {$shopDomain} not found in database");
         }
 
         http_response_code(200);
