@@ -20,13 +20,14 @@ class View
         include $viewFile;
         $content = ob_get_clean();
 
-        // Include layout if it exists
+        // Include layout if it exists and the view didn't already handle it
         $layoutFile = VIEWS_PATH . '/layouts/app.php';
-        if (file_exists($layoutFile)) {
+        if (file_exists($layoutFile) && stripos($content, '<!DOCTYPE html>') === false) {
             // Extract data again for layout
             extract($data);
             include $layoutFile;
         } else {
+            // View already included the layout or no layout exists
             echo $content;
         }
     }
