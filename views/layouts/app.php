@@ -45,7 +45,7 @@
     <!-- Shopify Title Bar with Help Button -->
     <ui-title-bar title="<?= $title ?? 'Report Pro' ?>">
         <button variant="primary" onclick="window.open('https://reportpro.codelocksolutions.com/docs', '_blank')">
-            Help
+            ? Help 
         </button>
     </ui-title-bar>
     
