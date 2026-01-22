@@ -242,6 +242,46 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         background: #000000;
     }
     
+    /* Reports page: top-right buttons (match screenshot) */
+    .rp-button-group {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .rp-btn {
+        border-radius: 10px;
+        padding: 6px 14px 8px;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        border: 1px solid transparent;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .rp-btn-secondary {
+        background: #D4D4D4;
+        color: #202223;
+        border-color: #D4D4D4;
+    }
+
+    .rp-btn-secondary:hover {
+        background:rgb(196, 196, 196);
+        border-color: rgb(196, 196, 196);
+    }
+
+    .rp-btn-primary {
+        background: rgb(65 65 65);
+        color: #ffffff;
+        border-color:rgb(0, 0, 0);
+    }
+    .rp-btn-primary:active {
+    .rp-btn-primary:hover {
+        background: rgb(38 37 37);
+        border-color: rgb(38 37 37);
+    }
+
     /* Tabs - Button Style */
     .Polaris-Tabs {
         background: white;
@@ -574,9 +614,24 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     <div class="Polaris-Page-Header">
         <div class="Polaris-Page-Header__Row">
             <h1 class="Polaris-Header-Title">Reports</h1>
-            <div class="Polaris-ButtonGroup">
-                <a href="#" class="Polaris-Button Polaris-Button--plain">Request custom report</a>
-                <a href="<?= $baseUrl ?>/reports/create<?= $suffix ?>" class="Polaris-Button Polaris-Button--primary">Create report</a>
+            <div class="rp-button-group">
+                <button
+                    id="Report:List:RequestCustomReport"
+                    type="button"
+                    class="rp-btn rp-btn-secondary"
+                    onclick="window.location.href='#'"
+                >
+                    Request custom report
+                </button>
+
+                <button
+                    id="Report:List:CreateReport"
+                    type="button"
+                    class="rp-btn rp-btn-primary"
+                    onclick="window.location.href='<?= $baseUrl ?>/reports/create<?= $suffix ?>'"
+                >
+                    Create report
+                </button>
             </div>
         </div>
     </div>
