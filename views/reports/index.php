@@ -276,7 +276,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         color: #ffffff;
         border-color:rgb(0, 0, 0);
     }
-    .rp-btn-primary:active {
+    .rp-btn-primary:active,
     .rp-btn-primary:hover {
         background: rgb(38 37 37);
         border-color: rgb(38 37 37);
