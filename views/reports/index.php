@@ -221,7 +221,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         align-items: center;
         justify-content: center;
         padding: 0.5rem 1rem;
-        font-size: 0.875rem;
+        font-size: 12px;
         font-weight: 500;
         border-radius: 0.375rem;
         cursor: pointer;
@@ -235,6 +235,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         background: white;
         color: #202223;
         border: 1px solid #c9cccf;
+        padding: 7px 6px;
     }
     
     .Polaris-Button--plain:hover {
@@ -269,7 +270,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         padding: 0.5rem 0.75rem;
         color: #202223;
         text-decoration: none;
-        font-size: 0.875rem;
+        font-size: 12px;
         font-weight: 500;
         background: #f6f6f7;
         border-radius: 0.5rem;
@@ -310,7 +311,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     /* Filters */
     .Polaris-Filters {
         background: white;
-        padding: 1rem 1.5rem;
+        padding: 8px;
         border-bottom: 1px solid #e1e3e5;
     }
     
@@ -327,7 +328,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     
     .Polaris-TextField__Input {
         width: 100%;
-        padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+        padding: 0.5rem 0.75rem 0.5rem 3.5rem;
         border: 1px solid #c9cccf;
         border-radius: 0.375rem;
         font-size: 0.875rem;
@@ -350,9 +351,11 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     }
     
     .Polaris-Icon {
-        width: 1rem;
-        height: 1rem;
+        width: 24px;
+        height: 24px;
         display: block;
+        fill: rgba(74, 74, 74, 1)!important;
+        margin: 0px;
     }
     
     /* Index Table */
@@ -375,7 +378,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     .Polaris-IndexTable__TableHeading th {
         text-align: left;
         padding: 0.75rem 1rem; /* Adjusted padding */
-        font-size: 0.8125rem; /* 13px */
+        font-size: 12px;
         font-weight: 600;
         color: #202223; /* Darker text for headers */
         letter-spacing: normal; /* Removed letter spacing */
@@ -399,8 +402,8 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     }
     
     .Polaris-IndexTable__TableRow td {
-        padding: 0.75rem 1rem;
-        font-size: 0.875rem; /* 14px */
+        padding: 6px;
+        font-size: 13px; /* 14px */
         color: #202223;
         vertical-align: middle;
     }
@@ -433,12 +436,14 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         color: #202223;
         text-decoration: none;
         font-weight: 600; /* Bolder name */
+        font-size: 13px;
+
     }
     
-    .Polaris-Link:hover {
+    /* .Polaris-Link:hover {
         color: #005bd3;
         text-decoration: underline;
-    }
+    } */
     
     /* Badge for Category */
     .category-badge {
@@ -525,15 +530,16 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     }
     
     /* Filters inside Card */
-    .Polaris-Filters {
+    /* .Polaris-Filters {
         background: white;
-        padding: 1rem 1.5rem;
-        border-bottom: none; /* Removed border as table header has one */
-    }
+        padding: 8px;
+        border-bottom: none;
+    } */
     
     /* Index Table inside Card */
     .Polaris-IndexTable {
         background: white;
+        border-radius: 0px;
     }
 
     @media (max-width: 768px) {
@@ -558,10 +564,14 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
             flex-direction: column;
         }
         
-        .Polaris-IndexTable__TableHeading th,
+        .Polaris-IndexTable__TableHeading th{
+            padding: 8px 6px;
+            font-size: 12px;
+        }
+
         .Polaris-IndexTable__TableRow td {
-            padding: 0.625rem 0.75rem;
-            font-size: 0.8125rem;
+            padding: 6px;
+            font-size: 13px;
         }
     }
 </style>
@@ -622,10 +632,8 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
                         >
                         </span>
                     </div>
-                    <button class="Polaris-Button Polaris-Button--plain">
-                        <svg class="Polaris-Icon" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M9 3a1 1 0 000 2h2a1 1 0 100-2H9zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zm2 4a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm2 4a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>
-                        </svg>
+                    <button class="Polaris-Button Polaris-Button--plain" style="margin-right: 1px;">
+                        <svg viewBox="0 0 20 20" class="Polaris-Icon" focusable="false" aria-hidden="true"><path d="M3 6a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5h-12.5a.75.75 0 0 1-.75-.75Z"></path><path d="M6.75 14a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75Z"></path><path d="M5.5 9.25a.75.75 0 0 0 0 1.5h9a.75.75 0 0 0 0-1.5h-9Z"></path></svg>
                     </button>
                 </div>
             </div>
