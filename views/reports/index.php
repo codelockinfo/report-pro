@@ -109,8 +109,6 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     ui-loading-bar,
     ui-modal,
     ui-save-bar,
-    ui-title-bar,
-    ui-nav-menu,
     [data-polaris-layer],
     [data-polaris-overlay],
     .Polaris-Frame-Loading,
@@ -180,15 +178,6 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         display: block !important;
     }
     
-    /* Page-specific: Hide title bar and nav menu on Reports page */
-    body ui-title-bar,
-    body ui-nav-menu {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        position: absolute !important;
-        left: -9999px !important;
-    }
     
     /* Page Header */
     .Polaris-Page-Header {
@@ -726,8 +715,6 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
             'ui-loading-bar',
             'ui-modal',
             'ui-save-bar',
-            'ui-title-bar',
-            'ui-nav-menu',
             '[data-polaris-layer]',
             '[data-polaris-overlay]',
             '.Polaris-Frame-Loading',
