@@ -235,7 +235,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         background: white;
         color: #202223;
         border: 1px solid #c9cccf;
-        padding: 7px 6px;
+        padding: 6px 6px;
     }
     
     .Polaris-Button--plain:hover {
@@ -317,7 +317,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     
     .Polaris-Filters__FiltersWrapper {
         display: flex;
-        gap: 0.75rem;
+        gap: 16px;
         align-items: center;
     }
     
@@ -328,7 +328,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     
     .Polaris-TextField__Input {
         width: 100%;
-        padding: 0.5rem 0.75rem 0.5rem 3.5rem;
+        padding: 6px 12px 6px 3.5rem;
         border: 1px solid #c9cccf;
         border-radius: 0.375rem;
         font-size: 0.875rem;
