@@ -42,6 +42,13 @@
     </style>
 </head>
 <body>
+    <!-- Shopify Title Bar with Help Button -->
+    <ui-title-bar title="<?= $title ?? 'Report Pro' ?>">
+        <button variant="primary" onclick="window.open('https://reportpro.codelocksolutions.com/docs', '_blank')">
+            Help
+        </button>
+    </ui-title-bar>
+    
     <!-- 
         Shopify Navigation Menu (ui-nav-menu)
         - The first <a> with rel="home" is REQUIRED and configures the home route
@@ -116,12 +123,12 @@
                 subtree: true
             });
             
-            // Also check periodically for the first few seconds (belt and suspenders)
+            // Also check periodically for the first few seconds
             var checkCount = 0;
             var checkInterval = setInterval(function() {
                 removeDuplicateNavMenus();
                 checkCount++;
-                if (checkCount >= 5) { // Check 5 times over 2.5 seconds
+                if (checkCount >= 5) {
                     clearInterval(checkInterval);
                 }
             }, 500);
