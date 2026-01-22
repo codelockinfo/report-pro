@@ -246,13 +246,16 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     .Polaris-Tabs {
         background: white;
         border-bottom: 1px solid #e1e3e5;
-        padding: 1rem 1.5rem 0.75rem;
+        padding: 8px;
     }
     
     .Polaris-Tabs__Wrapper {
         display: flex;
         gap: 0.5rem;
         border-bottom: none;
+        justify-content: flex-start;
+        align-items: center;
+        flex-wrap: nowrap;
     }
     
     .Polaris-Tabs__Tab {
@@ -265,8 +268,9 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         border-radius: 0.5rem;
         transition: all 0.15s ease;
         display: inline-flex !important; /* Force inline flex */
-        width: auto !important; /* Prevent stretching */
-        flex: none !important; /* Prevent flex growth */
+        width: fit-content !important; /* Width as per content */
+        flex: 0 0 auto !important; /* Prevent stretching (override Polaris) */
+        max-width: max-content;
         align-items: center;
         gap: 0.375rem;
         white-space: nowrap;
@@ -515,7 +519,6 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     .Polaris-Tabs {
         background: white;
         border-bottom: 1px solid #e1e3e5;
-        padding: 1rem 1.5rem 0.75rem;
     }
     
     /* Filters inside Card */
