@@ -28,6 +28,13 @@
             max-width: 100%;
             padding: 2rem;
         }
+        
+        /* Temporary fix for duplicate navigation menu */
+        /* This hides duplicate navigation items caused by Partner Dashboard static navigation */
+        /* Remove this once Partner Dashboard static navigation is disabled */
+        ui-nav-menu:not(:first-of-type) {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -40,10 +47,7 @@
         - Only flat lists are supported (no nested items)
     -->
     <ui-nav-menu>
-        <!-- Required: Home route configuration (not rendered as a link) -->
         <a href="/" rel="home">Report Pro</a>
-        
-        <!-- Visible navigation items -->
         <a href="/dashboard">Dashboard</a>
         <a href="/reports">Reports</a>
         <a href="/chart-analysis">Chart Analysis</a>
@@ -72,6 +76,22 @@
                 console.log("ReportPro: App Bridge auto-initializing with host:", host);
                 console.log("ReportPro: ui-nav-menu will render in sidebar automatically");
             }
+            
+            // Fix for duplicate navigation menu
+            // Sometimes Shopify App Bridge renders the menu twice
+            setTimeout(function() {
+                // Check if navigation is duplicated
+                var navMenus = document.querySelectorAll('ui-nav-menu');
+                console.log('ReportPro: Found', navMenus.length, 'ui-nav-menu elements');
+                
+                // If more than one ui-nav-menu exists, remove duplicates
+                if (navMenus.length > 1) {
+                    console.warn('ReportPro: Multiple ui-nav-menu elements detected, removing duplicates');
+                    for (var i = 1; i < navMenus.length; i++) {
+                        navMenus[i].remove();
+                    }
+                }
+            }, 1000);
             
             // Note: The latest App Bridge automatically:
             // 1. Detects the ui-nav-menu element
