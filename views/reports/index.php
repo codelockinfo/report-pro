@@ -129,80 +129,19 @@ $customCount = count(array_filter($allReports, fn($r) => $r['is_custom']));
 $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
 ?>
 
-<!-- Immediate script to hide certain Shopify UI elements before they render -->
-<script>
-    (function() {
-        // Create style element to hide specific Shopify UI elements immediately
-        const style = document.createElement('style');
-        style.textContent = `
-            ui-loading, ui-loading-bar,
-            .Polaris-Frame, .Polaris-TopBar, .Polaris-ActionMenu,
-            .Polaris-Popover, .Polaris-Sheet, .Polaris-Backdrop,
-            .Polaris-Portal, .Polaris-PositionedOverlay,
-            [role="menu"], [role="dialog"], [aria-modal="true"],
-            button[aria-haspopup="true"] {
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-            }
-        `;
-        document.head.appendChild(style);
-    })();
-</script>
-
+<!-- Custom Styles -->
 <style>
-    /* CRITICAL: Hide ALL Shopify auto-generated UI elements */
-    #app-bridge-host-container,
-    .shopify-app-bridge-ui,
-    ui-loading,
-    ui-loading-bar,
-    ui-modal,
-    ui-save-bar,
-    [data-polaris-layer],
-    [data-polaris-overlay],
-    .Polaris-Frame-Loading,
-    .Polaris-Loading,
-    .Polaris-Spinner,
-    .Polaris-Frame,
-    .Polaris-Frame-Navigation,
-    .Polaris-Frame-TopBar,
-    .Polaris-TopBar,
-    .Polaris-ActionMenu,
-    .Polaris-Popover,
-    .Polaris-PositionedOverlay,
-    .Polaris-Sheet,
-    .Polaris-Backdrop,
-    .Polaris-Portal,
-    shopify-app-bridge-host,
-    /* Hide any drawer/dropdown menus */
-    [role="menu"],
-    [role="dialog"],
-    [aria-modal="true"],
-    .Polaris-Select,
-    .Polaris-OptionList,
-    /* Hide three-dot menu buttons */
-    button[aria-label*="Actions"],
-    button[aria-label*="More"],
-    button[aria-haspopup="true"],
-    /* Hide any Shopify-generated containers */
-    div[data-shopify],
-    div[data-app-bridge] {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        position: absolute !important;
-        left: -9999px !important;
-        pointer-events: none !important;
+    /* Ensure the page fits well within Shopify admin */
+    .Polaris-Page {
+        padding: 1rem 0;
     }
     
-    /* Force our container to be visible and take full space */
     #reports-page-container {
         display: block !important;
         width: 100% !important;
         min-height: 100vh !important;
         background: #f6f6f7 !important;
         position: relative !important;
-        z-index: 9999 !important;
     }
     
     /* Override any Shopify styles */
@@ -226,6 +165,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         margin: 0 !important;
         display: block !important;
     }
+</style>
     
     
     /* Page Header */
