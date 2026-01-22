@@ -218,7 +218,7 @@ $baseUrl = rtrim($appUrl, '/');
 </style>
 
 <div class="report-details-container">
-    <a href="<?= $baseUrl ?>/reports" class="back-link">« Back to reports</a>
+    <a href="<?= $baseUrl ?>/reports<?= $suffix ?>" class="back-link">« Back to reports</a>
     
     <!-- Top Header with Title and Global Actions -->
     <div class="report-header">

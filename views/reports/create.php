@@ -73,12 +73,23 @@ ob_start();
 </div>
 
 <script>
+    <?php
+    $appUrl = getenv('APP_URL') ?: 'http://localhost/report-pro';
+    $baseUrl = rtrim($appUrl, '/');
+    $queryParams = $_GET;
+    unset($queryParams['url']);
+    $queryString = http_build_query($queryParams);
+    $suffix = $queryString ? '?' . $queryString : '';
+    ?>
+    const baseUrl = "<?= $baseUrl ?>";
+    const suffix = "<?= $suffix ?>";
+
 document.getElementById('dataset-select').addEventListener('change', function() {
     loadColumns(this.value);
 });
 
 function loadColumns(dataset) {
-    fetch('/ajax/reports/columns', {
+    fetch(`${baseUrl}/ajax/reports/columns${suffix}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -130,7 +141,7 @@ document.getElementById('report-form').addEventListener('submit', function(e) {
         }
     });
     
-    fetch('/reports/store', {
+    fetch(`${baseUrl}/reports/store${suffix}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -140,7 +151,7 @@ document.getElementById('report-form').addEventListener('submit', function(e) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            window.location.href = '/reports/' + data.report_id;
+            window.location.href = `${baseUrl}/reports/${data.report_id}${suffix}`;
         } else {
             alert('Error: ' + (data.error || 'Failed to create report'));
         }
