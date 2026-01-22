@@ -29,11 +29,15 @@
             padding: 2rem;
         }
         
-        /* Temporary fix for duplicate navigation menu */
-        /* This hides duplicate navigation items caused by Partner Dashboard static navigation */
-        /* Remove this once Partner Dashboard static navigation is disabled */
-        ui-nav-menu:not(:first-of-type) {
+        /* Immediate fix for duplicate navigation menu - prevents flash */
+        /* Hides any duplicate ui-nav-menu elements instantly */
+        ui-nav-menu:not(:first-of-type),
+        ui-nav-menu:nth-of-type(n+2) {
             display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            position: absolute !important;
+            left: -9999px !important;
         }
     </style>
 </head>
@@ -64,7 +68,20 @@
         // App Bridge Latest - Auto-initializes from meta tag
         // The ui-nav-menu element will be automatically detected and rendered in the sidebar
         
-        // Optional: Manual initialization for additional features
+        // Function to remove duplicate navigation menus
+        function removeDuplicateNavMenus() {
+            var navMenus = document.querySelectorAll('ui-nav-menu');
+            if (navMenus.length > 1) {
+                console.warn('ReportPro: Removing', navMenus.length - 1, 'duplicate ui-nav-menu elements');
+                for (var i = 1; i < navMenus.length; i++) {
+                    navMenus[i].remove();
+                }
+                return true;
+            }
+            return false;
+        }
+        
+        // Run immediately when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
             var urlParams = new URLSearchParams(window.location.search);
             var host = urlParams.get('host');
@@ -77,27 +94,37 @@
                 console.log("ReportPro: ui-nav-menu will render in sidebar automatically");
             }
             
-            // Fix for duplicate navigation menu
-            // Sometimes Shopify App Bridge renders the menu twice
-            setTimeout(function() {
-                // Check if navigation is duplicated
-                var navMenus = document.querySelectorAll('ui-nav-menu');
-                console.log('ReportPro: Found', navMenus.length, 'ui-nav-menu elements');
-                
-                // If more than one ui-nav-menu exists, remove duplicates
-                if (navMenus.length > 1) {
-                    console.warn('ReportPro: Multiple ui-nav-menu elements detected, removing duplicates');
-                    for (var i = 1; i < navMenus.length; i++) {
-                        navMenus[i].remove();
-                    }
-                }
-            }, 1000);
+            // Remove duplicates immediately
+            removeDuplicateNavMenus();
             
-            // Note: The latest App Bridge automatically:
-            // 1. Detects the ui-nav-menu element
-            // 2. Renders it in the LEFT SIDEBAR (desktop) or title bar dropdown (mobile)
-            // 3. Manages active state based on current URL
-            // 4. No manual initialization required!
+            // Monitor for duplicates being added dynamically
+            var observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.addedNodes.length > 0) {
+                        mutation.addedNodes.forEach(function(node) {
+                            if (node.nodeName === 'UI-NAV-MENU') {
+                                removeDuplicateNavMenus();
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // Start observing the body for added ui-nav-menu elements
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            
+            // Also check periodically for the first few seconds (belt and suspenders)
+            var checkCount = 0;
+            var checkInterval = setInterval(function() {
+                removeDuplicateNavMenus();
+                checkCount++;
+                if (checkCount >= 5) { // Check 5 times over 2.5 seconds
+                    clearInterval(checkInterval);
+                }
+            }, 500);
         });
     </script>
 </body>
