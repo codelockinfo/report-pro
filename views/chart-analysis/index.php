@@ -4,7 +4,7 @@ $currentRoute = '/chart-analysis';
 ob_start();
 ?>
 
-<?php include __DIR__ . '/../partials/header.php'; ?>
+
 
 <style>
     /* Layout */

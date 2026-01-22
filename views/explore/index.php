@@ -4,7 +4,7 @@ $currentRoute = '/explore';
 ob_start();
 ?>
 
-<?php include __DIR__ . '/../partials/header.php'; ?>
+
 
 <div class="Polaris-Page">
     <div class="Polaris-Page__Header">

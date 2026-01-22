@@ -10,7 +10,7 @@ $queryString = http_build_query($queryParams);
 $suffix = $queryString ? '?' . $queryString : '';
 ?>
 
-<?php include __DIR__ . '/../partials/header.php'; ?>
+
 
 <style>
     .report-details-container {

@@ -14,7 +14,7 @@ $appUrl = getenv('APP_URL') ?: 'http://localhost/report-pro';
 $baseUrl = rtrim($appUrl, '/');
 ?>
 
-<?php include __DIR__ . '/../partials/header.php'; ?>
+
 
 <style>
     .report-details-container {
