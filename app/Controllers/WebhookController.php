@@ -28,8 +28,8 @@ class WebhookController extends Controller
         $shop = $shopModel->findByDomain($shopDomain);
         
         if ($shop) {
-            // Delete shop and all related data (cascade will handle it)
-            $shopModel->delete($shop['id']);
+            // Mark shop as inactive instead of deleting
+            $shopModel->update($shop['id'], ['is_active' => 0]);
         }
 
         http_response_code(200);

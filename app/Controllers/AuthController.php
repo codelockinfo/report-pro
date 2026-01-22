@@ -178,7 +178,8 @@ class AuthController extends Controller
             $shopData = [
                 'access_token' => $accessToken,
                 'scope' => $scope,
-                'store_name' => $shop
+                'store_name' => $shop,
+                'is_active' => 1
             ];
             
             error_log("Saving shop to database with data: " . json_encode(array_keys($shopData)));

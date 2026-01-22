@@ -101,11 +101,11 @@ class Controller
             $shopModel = new \App\Models\Shop();
             $shop = $shopModel->findByDomain($shopParam);
             
-            if ($shop) {
-                error_log("Controller::getShop - Found shop in database: {$shop['shop_domain']}");
+            if ($shop && ($shop['is_active'] ?? 1)) {
+                error_log("Controller::getShop - Found active shop in database: {$shop['shop_domain']}");
                 return $shop;
             } else {
-                error_log("Controller::getShop - Shop not found in database: {$shopParam}");
+                error_log("Controller::getShop - Shop not found or inactive in database: {$shopParam}");
                 return null;
             }
         }
@@ -120,8 +120,11 @@ class Controller
         $shopModel = new \App\Models\Shop();
         $shop = $shopModel->findByDomain($session['shop']);
         
-        if ($shop) {
-            error_log("Controller::getShop - Found shop from session: {$shop['shop_domain']}");
+        if ($shop && ($shop['is_active'] ?? 1)) {
+            error_log("Controller::getShop - Found active shop from session: {$shop['shop_domain']}");
+        } else {
+            error_log("Controller::getShop - Shop from session is inactive or not found");
+            return null;
         }
         
         return $shop;
