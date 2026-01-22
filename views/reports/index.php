@@ -26,18 +26,42 @@ if ($currentTab === 'all') $currentTab = '1';
 if ($currentTab === 'custom') $currentTab = '2';
 if ($currentTab === 'favorites') $currentTab = '3';
 
+// Create a mapping of predefined report types to their category titles
+$predefinedTypeToCategory = [];
+foreach ($dashboardCategories as $cat) {
+    foreach ($cat['items'] as $item) {
+        $parsedUrl = parse_url($item['url']);
+        parse_str($parsedUrl['query'] ?? '', $query);
+        if (isset($query['type'])) {
+            $predefinedTypeToCategory[$query['type']] = $cat['title'];
+        }
+    }
+}
+
+// Track visited predefined reports by their type to avoid duplicates
+$visitedPredefinedTypes = [];
+
 // Flatten all reports into a single array for table display
 $allReports = [];
 
-// Add custom reports
+// Add reports from database (could be custom or visited predefined ones)
 if (!empty($reports)) {
     foreach ($reports as $report) {
+        $isDbCustom = (isset($report['is_custom']) && $report['is_custom'] == 1);
+        $dbCategory = $report['category'] ?? ''; // This is either user-defined or predefined type
+        
+        $displayCategory = 'Custom';
+        if (!$isDbCustom) {
+            $visitedPredefinedTypes[] = $dbCategory;
+            $displayCategory = $predefinedTypeToCategory[$dbCategory] ?? 'Predefined';
+        }
+
         $allReports[] = [
             'id' => $report['id'],
             'name' => $report['name'],
-            'category' => 'Custom',
+            'category' => $displayCategory,
             'url' => $baseUrl . '/reports/' . $report['id'] . $suffix,
-            'is_custom' => true,
+            'is_custom' => $isDbCustom,
             'is_favorite' => false,
             'last_viewed' => 'about 18 hours ago',
             'views' => rand(1, 10)
@@ -45,9 +69,16 @@ if (!empty($reports)) {
     }
 }
 
-// Add predefined reports from categories
+// Add predefined reports from categories (only if not already visited/in DB)
 foreach ($dashboardCategories as $category) {
     foreach ($category['items'] as $item) {
+        $parsedUrl = parse_url($item['url']);
+        parse_str($parsedUrl['query'] ?? '', $query);
+        $type = $query['type'] ?? '';
+        
+        // If this predefined report is already in the DB (visited), skip adding the generic link
+        if (in_array($type, $visitedPredefinedTypes)) continue;
+
         $sep = strpos($item['url'], '?') !== false ? '&' : '?';
         $fullUrl = $baseUrl . $item['url'] . ($queryString ? $sep . $queryString : '');
         
