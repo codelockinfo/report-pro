@@ -125,7 +125,7 @@ class ReportController extends Controller
     {
         return [
             'agreement_lines' => [
-                'title' => 'Agreement lines (formerly order lines)',
+                'title' => 'Sales',
                 'items' => [
                     ['name' => 'All-time sales', 'url' => '/report?type=all_time_sales'],
                     ['name' => 'Items pending fulfillment', 'url' => '/report?type=pending_fulfillment'],

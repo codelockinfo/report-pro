@@ -42,6 +42,7 @@
     </style>
 </head>
 <body>
+    <?php if ($currentRoute !== '/reports'): ?>
     <!-- Shopify Title Bar with Help Button -->
     <ui-title-bar title="<?= $title ?? 'Report Pro' ?>">
         <button variant="primary" onclick="window.open('https://reportpro.codelocksolutions.com/docs', '_blank')">
@@ -65,6 +66,7 @@
         <a href="/schedule">Schedule</a>
         <a href="/settings">Settings</a>
     </ui-nav-menu>
+    <?php endif; ?>
     
     <div id="app">
         <?= $content ?>
