@@ -3,9 +3,11 @@ $title = $report['name'];
 $currentRoute = '/reports';
 ob_start();
 
-// Preserve query parameters for nav
+// Preserve query parameters for nav (excluding those that trigger redirection back to this report)
 $queryParams = $_GET;
 unset($queryParams['url']);
+unset($queryParams['type']);
+unset($queryParams['id']);
 $queryString = http_build_query($queryParams);
 $suffix = $queryString ? '?' . $queryString : '';
 ?>
