@@ -108,6 +108,12 @@ class ReportController extends Controller
             $report = $reportModel->getWithColumns($reportId);
         }
 
+        // Update view counts and last viewed timestamp
+        $reportModel->update($reportId, [
+            'view_count' => ($report['view_count'] ?? 0) + 1,
+            'last_viewed_at' => date('Y-m-d H:i:s')
+        ]);
+
         // Get results
         $resultModel = new ReportResult();
         $result = $resultModel->findByReport($reportId);
@@ -404,6 +410,12 @@ class ReportController extends Controller
 
         $resultModel = new ReportResult();
         $result = $resultModel->findByReport($id);
+
+        // Update view counts and last viewed timestamp
+        $reportModel->update($id, [
+            'view_count' => ($report['view_count'] ?? 0) + 1,
+            'last_viewed_at' => date('Y-m-d H:i:s')
+        ]);
 
         $this->view->render('reports/report', [
             'shop' => $shop,

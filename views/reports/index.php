@@ -25,6 +25,22 @@ $currentTab = $_GET['tab'] ?? '1'; // Default to tab 1 (All)
 if ($currentTab === 'all') $currentTab = '1';
 if ($currentTab === 'custom') $currentTab = '2';
 if ($currentTab === 'favorites') $currentTab = '3';
+ 
+// Time ago helper function
+function timeAgo($timestamp) {
+    if (!$timestamp) return '';
+    
+    $datetime = new DateTime($timestamp);
+    $now = new DateTime();
+    $interval = $now->diff($datetime);
+    
+    if ($interval->y >= 1) return $interval->y . ' year' . ($interval->y > 1 ? 's' : '') . ' ago';
+    if ($interval->m >= 1) return $interval->m . ' month' . ($interval->m > 1 ? 's' : '') . ' ago';
+    if ($interval->d >= 1) return $interval->d . ' day' . ($interval->d > 1 ? 's' : '') . ' ago';
+    if ($interval->h >= 1) return $interval->h . ' hour' . ($interval->h > 1 ? 's' : '') . ' ago';
+    if ($interval->i >= 1) return $interval->i . ' minute' . ($interval->i > 1 ? 's' : '') . ' ago';
+    return 'Just now';
+}
 
 // Create a mapping of predefined report types to their category titles
 $predefinedTypeToCategory = [];
@@ -63,8 +79,8 @@ if (!empty($reports)) {
             'url' => $baseUrl . '/reports/' . $report['id'] . $suffix,
             'is_custom' => $isDbCustom,
             'is_favorite' => false,
-            'last_viewed' => 'about 18 hours ago',
-            'views' => rand(1, 10)
+            'last_viewed' => timeAgo($report['last_viewed_at'] ?? null),
+            'views' => ($report['view_count'] ?? 0) > 0 ? $report['view_count'] : ''
         ];
     }
 }
@@ -89,8 +105,8 @@ foreach ($dashboardCategories as $category) {
             'url' => $fullUrl,
             'is_custom' => false,
             'is_favorite' => false,
-            'last_viewed' => 'about 18 hours ago',
-            'views' => rand(1, 10)
+            'last_viewed' => '',
+            'views' => ''
         ];
     }
 }
