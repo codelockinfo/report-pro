@@ -80,13 +80,13 @@ $customCount = count(array_filter($allReports, fn($r) => $r['is_custom']));
 $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
 ?>
 
-<!-- Immediate script to hide Shopify UI before it renders -->
+<!-- Immediate script to hide certain Shopify UI elements before they render -->
 <script>
     (function() {
-        // Create style element to hide Shopify UI immediately
+        // Create style element to hide specific Shopify UI elements immediately
         const style = document.createElement('style');
         style.textContent = `
-            ui-title-bar, ui-nav-menu, ui-loading, ui-loading-bar,
+            ui-loading, ui-loading-bar,
             .Polaris-Frame, .Polaris-TopBar, .Polaris-ActionMenu,
             .Polaris-Popover, .Polaris-Sheet, .Polaris-Backdrop,
             .Polaris-Portal, .Polaris-PositionedOverlay,
