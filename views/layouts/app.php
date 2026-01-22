@@ -45,7 +45,11 @@
     <!-- Shopify Title Bar with Help Button -->
     <ui-title-bar title="<?= $title ?? 'Report Pro' ?>">
         <button variant="primary" onclick="window.open('https://reportpro.codelocksolutions.com/docs', '_blank')">
-            ? Help 
+            Help 
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-left: 4px;">
+                <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z"/>
+                <path d="M8 11c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1zM8 3C6.3 3 5 4.3 5 6h1.5c0-.8.7-1.5 1.5-1.5s1.5.7 1.5 1.5c0 1.5-2.5 1.3-2.5 3.5h1.5c0-1.6 2.5-1.8 2.5-3.5C11 4.3 9.7 3 8 3z"/>
+            </svg>
         </button>
     </ui-title-bar>
     
