@@ -59,7 +59,6 @@
     -->
     <ui-nav-menu>
         <a href="/" rel="home">Report Pro</a>
-        <a href="/dashboard">Dashboard</a>
         <a href="/reports">Reports</a>
         <a href="/chart-analysis">Chart Analysis</a>
         <a href="/schedule">Schedule</a>
