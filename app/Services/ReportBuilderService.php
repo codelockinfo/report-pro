@@ -437,6 +437,8 @@ class ReportBuilderService
     private function buildAovTimeQuery($filters, $columns, $groupBy, $aggregations)
     {
         return "#DATASET:AOV_TIME\nquery { orders(first: 250) { edges { node { id createdAt totalPriceSet { shopMoney { amount } } } } } }";
+    }
+
     private function buildBrowserShareQuery($filters, $columns, $groupBy, $aggregations)
     {
         return "#DATASET:BROWSER_SHARE\nquery { orders(first: 250) { edges { node { id customerJourneySummary { lastVisit { source browser } } } } } }";

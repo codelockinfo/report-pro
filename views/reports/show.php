@@ -23,14 +23,28 @@ $suffix = $queryString ? '?' . $queryString : '';
     
     /* Back Link */
     .back-link {
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         padding: 15px 0;
-        color: #2c6ecb;
+        color: #101010;
         text-decoration: none;
         font-size: 18px;
+        font-weight: 500;
         margin-bottom: 10px;
+        transition: all 0.2s ease;
     }
-    .back-link:hover { text-decoration: underline; }
+    .back-link:hover {
+        color: #000000;
+    }
+    .back-link:hover .back-arrow {
+        transform: translateX(-3px);
+    }
+    .back-arrow {
+        width: 20px;
+        height: 20px;
+        transition: transform 0.2s ease;
+    }
     
     /* Header Area */
     .report-header {
@@ -191,7 +205,12 @@ $suffix = $queryString ? '?' . $queryString : '';
 </style>
 
 <div class="report-details-container">
-    <a href="/reports<?= $suffix ?>" class="back-link">« Back to reports</a>
+    <a href="/reports<?= $suffix ?>" class="back-link">
+        <svg class="back-arrow" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/>
+        </svg>
+        Back to reports
+    </a>
     
     <div class="report-header">
         <div class="header-left">
