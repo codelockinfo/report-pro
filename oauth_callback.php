@@ -292,6 +292,64 @@ try {
         'shop_id' => $shopId,
         'action' => $existingShop ? 'reinstalled' : 'installed'
     ]);
+    
+    // Register webhooks automatically
+    logOAuth('Registering webhooks for shop', ['shop' => $shop]);
+    
+    $webhookTopics = [
+        'app/uninstalled' => '/webhooks/app/uninstalled',
+        'customers/data_request' => '/webhooks/customers/data_request',
+        'customers/redact' => '/webhooks/customers/redact',
+        'shop/redact' => '/webhooks/shop/redact'
+    ];
+    
+    $webhooksRegistered = 0;
+    $webhooksFailed = 0;
+    
+    foreach ($webhookTopics as $topic => $path) {
+        $webhookUrl = "https://{$shop}/admin/api/{$config['shopify']['api_version']}/webhooks.json";
+        
+        $data = [
+            'webhook' => [
+                'topic' => $topic,
+                'address' => $config['app_url'] . $path,
+                'format' => 'json'
+            ]
+        ];
+        
+        $ch = curl_init($webhookUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'X-Shopify-Access-Token: ' . $accessToken
+        ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode === 201) {
+            $webhooksRegistered++;
+            logOAuth("Webhook registered successfully: {$topic}");
+        } else {
+            $webhooksFailed++;
+            $responseData = json_decode($response, true);
+            $errorMsg = isset($responseData['errors']) ? json_encode($responseData['errors']) : $response;
+            logOAuth("Webhook registration failed: {$topic}", [
+                'http_code' => $httpCode,
+                'error' => $errorMsg
+            ]);
+        }
+    }
+    
+    logOAuth('Webhook registration complete', [
+        'registered' => $webhooksRegistered,
+        'failed' => $webhooksFailed
+    ]);
+    
 } catch (Exception $e) {
     logOAuth('Database error', [
         'shop' => $shop,
