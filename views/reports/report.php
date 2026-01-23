@@ -105,7 +105,7 @@ $baseUrl = rtrim($appUrl, '/');
         align-items: center;
         gap: 6px;
         border-radius: 10px;
-        padding: 4px 8px 6px;
+        padding: 5px 10px 7px;
         font-size: 13px;
         font-weight: 600;
         line-height: 1;
