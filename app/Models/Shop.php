@@ -77,5 +77,33 @@ class Shop extends Model
     {
         return $this->findByDomain($domain);
     }
+    
+    /**
+     * Check if a shop is active (app is installed)
+     * 
+     * @param string $domain Shop domain
+     * @return bool True if shop exists and is active
+     */
+    public function isActive($domain)
+    {
+        $shop = $this->findByDomain($domain);
+        return $shop && isset($shop['is_active']) && $shop['is_active'] == 1;
+    }
+    
+    /**
+     * Get active shop by domain
+     * Returns shop only if it's active, null otherwise
+     * 
+     * @param string $domain Shop domain
+     * @return array|null Shop data if active, null otherwise
+     */
+    public function getActiveShop($domain)
+    {
+        $shop = $this->findByDomain($domain);
+        if ($shop && isset($shop['is_active']) && $shop['is_active'] == 1) {
+            return $shop;
+        }
+        return null;
+    }
 }
 

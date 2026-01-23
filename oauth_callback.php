@@ -266,15 +266,31 @@ if (empty($accessToken)) {
 // Save shop and access token to database
 try {
     $shopModel = new Shop();
+    
+    // Check if shop exists (could be a reinstall after uninstall)
+    $existingShop = $shopModel->findByDomain($shop);
+    
+    if ($existingShop) {
+        logOAuth('Shop reinstalling - updating with new token', [
+            'shop' => $shop,
+            'shop_id' => $existingShop['id'],
+            'previous_status' => $existingShop['is_active'] ?? 'unknown'
+        ]);
+    }
+    
+    // Create or update shop with new access token and set is_active = 1
+    // This handles both new installations and reinstallations
     $shopId = $shopModel->createOrUpdate($shop, [
         'access_token' => $accessToken,
         'scope' => $scope,
-        'store_name' => $shop
+        'store_name' => $shop,
+        'is_active' => 1  // Always set to active on (re)installation
     ]);
     
     logOAuth('Shop saved successfully', [
         'shop' => $shop,
-        'shop_id' => $shopId
+        'shop_id' => $shopId,
+        'action' => $existingShop ? 'reinstalled' : 'installed'
     ]);
 } catch (Exception $e) {
     logOAuth('Database error', [
