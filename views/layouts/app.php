@@ -79,7 +79,6 @@
         function removeDuplicateNavMenus() {
             var navMenus = document.querySelectorAll('ui-nav-menu');
             if (navMenus.length > 1) {
-                console.warn('ReportPro: Removing', navMenus.length - 1, 'duplicate ui-nav-menu elements');
                 for (var i = 1; i < navMenus.length; i++) {
                     navMenus[i].remove();
                 }
@@ -93,13 +92,6 @@
             var urlParams = new URLSearchParams(window.location.search);
             var host = urlParams.get('host');
             var shop = urlParams.get('shop') || '<?= $shop['shop_domain'] ?? '' ?>';
-            
-            if (!host) {
-                console.warn("ReportPro: Host parameter is missing. App Bridge may not initialize properly.");
-            } else {
-                console.log("ReportPro: App Bridge auto-initializing with host:", host);
-                console.log("ReportPro: ui-nav-menu will render in sidebar automatically");
-            }
             
             // Remove duplicates immediately
             removeDuplicateNavMenus();
