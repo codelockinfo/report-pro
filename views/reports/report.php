@@ -535,7 +535,7 @@ $baseUrl = rtrim($appUrl, '/');
             <?php else: ?>
                 <div class="empty-state">
                     <p>No data available. Run the report to generate data.</p>
-                    <button onclick="runReport()" class="Polaris-Button Polaris-Button--primary">Run Report</button>
+                    <button onclick="runReport()" class="rp-btn rp-btn-primary">Run Report</button>
                 </div>
             <?php endif; ?>
         </div>
