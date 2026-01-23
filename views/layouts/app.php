@@ -3,18 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- Shopify App Bridge (Latest) - MUST be first script -->
-    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
-    
     <title><?= $title ?? 'Report Pro' ?> - Shopify App</title>
     
-    <!-- Shopify Configuration -->
+    <!-- Shopify API Key for App Bridge Host -->
     <meta name="shopify-api-key" content="<?= $config['shopify']['api_key'] ?>">
-    <meta name="shopify-shop-domain" content="<?= $shop['shop_domain'] ?? '' ?>">
     
     <!-- Shopify Polaris CSS -->
     <link rel="stylesheet" href="https://unpkg.com/@shopify/polaris@10.0.0/build/esm/styles.css" />
+    
+    <!-- Shopify App Bridge (Latest) - Auto-initializes and renders ui-nav-menu in sidebar -->
+    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     
     <!-- Chart.js for reports -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -32,74 +30,108 @@
         }
         
         /* Immediate fix for duplicate navigation menu - prevents flash */
-        ui-nav-menu:not(:first-of-type) {
+        /* Hides any duplicate ui-nav-menu elements instantly */
+        ui-nav-menu:not(:first-of-type),
+        ui-nav-menu:nth-of-type(n+2) {
             display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            position: absolute !important;
+            left: -9999px !important;
         }
     </style>
 </head>
 <body>
-    <!-- Shopify Title Bar -->
+    <!-- Shopify Title Bar with Help Button -->
     <ui-title-bar title="<?= $title ?? 'Report Pro' ?>">
         <button variant="primary" onclick="window.open('https://reportpro.codelocksolutions.com/docs', '_blank')">
             Help ❔
         </button>
     </ui-title-bar>
     
-    <!-- Shopify Navigation Menu -->
+    <!-- 
+        Shopify Navigation Menu (ui-nav-menu)
+        - The first <a> with rel="home" is REQUIRED and configures the home route
+        - It is NOT rendered as a visible link in the sidebar
+        - All subsequent <a> tags create the sidebar navigation menu
+        - Shopify's App Bridge host automatically handles the active state based on current URL
+        - Only flat lists are supported (no nested items)
+    -->
     <ui-nav-menu>
-        <a href="<?= $baseUrl ?>/" rel="home">Report Pro</a>
-        <a href="<?= $baseUrl ?>/dashboard">Dashboard</a>
-        <a href="<?= $baseUrl ?>/reports">Reports</a>
-        <a href="<?= $baseUrl ?>/chart-analysis">Chart Analysis</a>
-        <a href="<?= $baseUrl ?>/schedule">Schedule</a>
-        <a href="<?= $baseUrl ?>/settings">Settings</a>
+        <a href="/" rel="home">Report Pro</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/reports">Reports</a>
+        <a href="/chart-analysis">Chart Analysis</a>
+        <a href="/schedule">Schedule</a>
+        <a href="/settings">Settings</a>
     </ui-nav-menu>
     
     <div id="app">
         <?= $content ?>
     </div>
     
+    
     <script>
-        // App Bridge auto-initializes with the meta tags
-        // Just add some debugging and cleanup
+        // App Bridge Latest - Auto-initializes from meta tag
+        // The ui-nav-menu element will be automatically detected and rendered in the sidebar
+        
+        // Function to remove duplicate navigation menus
+        function removeDuplicateNavMenus() {
+            var navMenus = document.querySelectorAll('ui-nav-menu');
+            if (navMenus.length > 1) {
+                console.warn('ReportPro: Removing', navMenus.length - 1, 'duplicate ui-nav-menu elements');
+                for (var i = 1; i < navMenus.length; i++) {
+                    navMenus[i].remove();
+                }
+                return true;
+            }
+            return false;
+        }
+        
+        // Run immediately when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const host = urlParams.get('host');
-            
-            // Debug: Check if UI elements exist
-            const titleBar = document.querySelector('ui-title-bar');
-            const navMenu = document.querySelector('ui-nav-menu');
-            
-            console.log('=== App Bridge Debug Info ===');
-            console.log('Host parameter:', host || 'MISSING');
-            console.log('ui-title-bar element:', titleBar ? 'FOUND' : 'NOT FOUND');
-            console.log('ui-nav-menu element:', navMenu ? 'FOUND' : 'NOT FOUND');
-            
-            if (titleBar) {
-                console.log('ui-title-bar HTML:', titleBar.outerHTML.substring(0, 200));
-            }
-            if (navMenu) {
-                console.log('ui-nav-menu HTML:', navMenu.outerHTML.substring(0, 200));
-                console.log('ui-nav-menu children count:', navMenu.children.length);
-            }
+            var urlParams = new URLSearchParams(window.location.search);
+            var host = urlParams.get('host');
+            var shop = urlParams.get('shop') || '<?= $shop['shop_domain'] ?? '' ?>';
             
             if (!host) {
-                console.warn("⚠️ Warning: 'host' parameter is missing in URL. App Bridge UI elements require this parameter.");
-                console.log("💡 Tip: Add ?host=YOUR_HOST_PARAM to the URL");
+                console.warn("ReportPro: Host parameter is missing. App Bridge may not initialize properly.");
             } else {
-                console.log("✅ App Bridge should auto-initialize with host:", host);
+                console.log("ReportPro: App Bridge auto-initializing with host:", host);
+                console.log("ReportPro: ui-nav-menu will render in sidebar automatically");
             }
             
-            // Clean up any duplicate navigation menus that might be injected
-            setTimeout(() => {
-                const navMenus = document.querySelectorAll('ui-nav-menu');
-                if (navMenus.length > 1) {
-                    console.log(`Found ${navMenus.length} nav menus, removing duplicates`);
-                    for (let i = 1; i < navMenus.length; i++) {
-                        navMenus[i].remove();
+            // Remove duplicates immediately
+            removeDuplicateNavMenus();
+            
+            // Monitor for duplicates being added dynamically
+            var observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.addedNodes.length > 0) {
+                        mutation.addedNodes.forEach(function(node) {
+                            if (node.nodeName === 'UI-NAV-MENU') {
+                                removeDuplicateNavMenus();
+                            }
+                        });
                     }
+                });
+            });
+            
+            // Start observing the body for added ui-nav-menu elements
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            
+            // Also check periodically for the first few seconds
+            var checkCount = 0;
+            var checkInterval = setInterval(function() {
+                removeDuplicateNavMenus();
+                checkCount++;
+                if (checkCount >= 5) {
+                    clearInterval(checkInterval);
                 }
-            }, 1000);
+            }, 500);
         });
     </script>
 </body>

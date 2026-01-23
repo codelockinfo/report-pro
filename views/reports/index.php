@@ -129,9 +129,31 @@ $customCount = count(array_filter($allReports, fn($r) => $r['is_custom']));
 $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
 ?>
 
+<!-- Immediate script to hide certain Shopify UI elements before they render -->
+<script>
+    (function() {
+        // Create style element to hide specific Shopify UI elements immediately
+        const style = document.createElement('style');
+        style.textContent = `
+            ui-loading, ui-loading-bar,
+            .Polaris-Frame, .Polaris-TopBar, .Polaris-ActionMenu,
+            .Polaris-Popover, .Polaris-Sheet, .Polaris-Backdrop,
+            .Polaris-Portal, .Polaris-PositionedOverlay,
+            [role="menu"], [role="dialog"], [aria-modal="true"],
+            button[aria-haspopup="true"] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+            }
+        `;
+        document.head.appendChild(style);
+    })();
+</script>
+
 <style>
-    /* Hide only unwanted Shopify UI elements (loading indicators, modals, etc.) */
-    /* DO NOT hide ui-title-bar or ui-nav-menu as they are needed for navigation */
+    /* CRITICAL: Hide ALL Shopify auto-generated UI elements */
+    #app-bridge-host-container,
+    .shopify-app-bridge-ui,
     ui-loading,
     ui-loading-bar,
     ui-modal,
@@ -140,10 +162,37 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
     [data-polaris-overlay],
     .Polaris-Frame-Loading,
     .Polaris-Loading,
-    .Polaris-Spinner {
+    .Polaris-Spinner,
+    .Polaris-Frame,
+    .Polaris-Frame-Navigation,
+    .Polaris-Frame-TopBar,
+    .Polaris-TopBar,
+    .Polaris-ActionMenu,
+    .Polaris-Popover,
+    .Polaris-PositionedOverlay,
+    .Polaris-Sheet,
+    .Polaris-Backdrop,
+    .Polaris-Portal,
+    shopify-app-bridge-host,
+    /* Hide any drawer/dropdown menus */
+    [role="menu"],
+    [role="dialog"],
+    [aria-modal="true"],
+    .Polaris-Select,
+    .Polaris-OptionList,
+    /* Hide three-dot menu buttons */
+    button[aria-label*="Actions"],
+    button[aria-label*="More"],
+    button[aria-haspopup="true"],
+    /* Hide any Shopify-generated containers */
+    div[data-shopify],
+    div[data-app-bridge] {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
+        position: absolute !important;
+        left: -9999px !important;
+        pointer-events: none !important;
     }
     
     /* Force our container to be visible and take full space */
@@ -808,6 +857,102 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
 </div>
 
 <script>
+    // CRITICAL: Aggressively remove any Shopify-injected UI elements
+    function removeShopifyUIElements() {
+        const elementsToRemove = [
+            '#app-bridge-host-container',
+            '.shopify-app-bridge-ui',
+            'ui-loading',
+            'ui-loading-bar',
+            'ui-modal',
+            'ui-save-bar',
+            '[data-polaris-layer]',
+            '[data-polaris-overlay]',
+            '.Polaris-Frame-Loading',
+            '.Polaris-Loading',
+            '.Polaris-Spinner',
+            '.Polaris-Frame',
+            '.Polaris-Frame-Navigation',
+            '.Polaris-Frame-TopBar',
+            '.Polaris-TopBar',
+            '.Polaris-ActionMenu',
+            '.Polaris-Popover',
+            '.Polaris-PositionedOverlay',
+            '.Polaris-Sheet',
+            '.Polaris-Backdrop',
+            '.Polaris-Portal',
+            'shopify-app-bridge-host',
+            '[role="menu"]',
+            '[role="dialog"]',
+            '[aria-modal="true"]',
+            '.Polaris-Select',
+            '.Polaris-OptionList',
+            'button[aria-label*="Actions"]',
+            'button[aria-label*="More"]',
+            'button[aria-haspopup="true"]',
+            'div[data-shopify]',
+            'div[data-app-bridge]'
+        ];
+        
+        elementsToRemove.forEach(selector => {
+            try {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(el => {
+                    // Don't remove elements inside our reports container
+                    if (el && !el.closest('#reports-page-container')) {
+                        if (el.parentNode) {
+                            try {
+                                el.parentNode.removeChild(el);
+                            } catch (e) {
+                                // Ignore errors
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                // Ignore selector errors
+            }
+        });
+        
+        // Also remove any elements with Shopify-specific attributes
+        try {
+            const shopifyElements = document.querySelectorAll('[data-shopify], [data-app-bridge]');
+            shopifyElements.forEach(el => {
+                if (el && el.id !== 'reports-page-container' && !el.closest('#reports-page-container')) {
+                    try {
+                        if (el.parentNode) {
+                            el.parentNode.removeChild(el);
+                        }
+                    } catch (e) {
+                        // Ignore errors
+                    }
+                }
+            });
+        } catch (e) {
+            // Ignore errors
+        }
+    }
+    
+    // Run immediately (before DOM ready)
+    removeShopifyUIElements();
+    
+    // Run when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', removeShopifyUIElements);
+    } else {
+        removeShopifyUIElements();
+    }
+    
+    // Run periodically to catch dynamically added elements (more frequently)
+    setInterval(removeShopifyUIElements, 50);
+    
+    // Also run on any DOM mutations
+    const observer = new MutationObserver(removeShopifyUIElements);
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
     // Search functionality
     const searchInput = document.getElementById('reportSearch');
     let searchTimeout;
