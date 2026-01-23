@@ -60,32 +60,46 @@
     </div>
     
     <script>
-        // Clean up duplicate UI elements silently
-        function cleanShopifyUI() {
-            const navMenus = document.querySelectorAll('ui-nav-menu');
-            if (navMenus.length > 1) {
-                for (let i = 1; i < navMenus.length; i++) {
-                    navMenus[i].remove();
-                }
-            }
-        }
-
+        // App Bridge auto-initializes with the meta tags
+        // Just add some debugging and cleanup
         document.addEventListener('DOMContentLoaded', function() {
-            // Initial cleanup
-            cleanShopifyUI();
-            
-            // Periodically check for duplicates injected by App Bridge
-            let count = 0;
-            const interval = setInterval(() => {
-                cleanShopifyUI();
-                if (++count > 10) clearInterval(interval);
-            }, 500);
-
-            // Silent host/shop check for debugging
             const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.get('host')) {
-                console.debug("Note: Host parameter is missing in URL.");
+            const host = urlParams.get('host');
+            
+            // Debug: Check if UI elements exist
+            const titleBar = document.querySelector('ui-title-bar');
+            const navMenu = document.querySelector('ui-nav-menu');
+            
+            console.log('=== App Bridge Debug Info ===');
+            console.log('Host parameter:', host || 'MISSING');
+            console.log('ui-title-bar element:', titleBar ? 'FOUND' : 'NOT FOUND');
+            console.log('ui-nav-menu element:', navMenu ? 'FOUND' : 'NOT FOUND');
+            
+            if (titleBar) {
+                console.log('ui-title-bar HTML:', titleBar.outerHTML.substring(0, 200));
             }
+            if (navMenu) {
+                console.log('ui-nav-menu HTML:', navMenu.outerHTML.substring(0, 200));
+                console.log('ui-nav-menu children count:', navMenu.children.length);
+            }
+            
+            if (!host) {
+                console.warn("⚠️ Warning: 'host' parameter is missing in URL. App Bridge UI elements require this parameter.");
+                console.log("💡 Tip: Add ?host=YOUR_HOST_PARAM to the URL");
+            } else {
+                console.log("✅ App Bridge should auto-initialize with host:", host);
+            }
+            
+            // Clean up any duplicate navigation menus that might be injected
+            setTimeout(() => {
+                const navMenus = document.querySelectorAll('ui-nav-menu');
+                if (navMenus.length > 1) {
+                    console.log(`Found ${navMenus.length} nav menus, removing duplicates`);
+                    for (let i = 1; i < navMenus.length; i++) {
+                        navMenus[i].remove();
+                    }
+                }
+            }, 1000);
         });
     </script>
 </body>
