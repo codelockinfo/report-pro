@@ -156,8 +156,18 @@ $baseUrl = rtrim($appUrl, '/');
         background: white;
         margin: 20px;
         border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
+        overflow: visible !important;
+    }
+    
+    .report-details-container {
+        overflow: visible !important;
+        padding-bottom: 500px; /* Hack to ensure scroll space for popover */
+    }
+
+    /* Date Picker Safe Scroll */
+    .dateRangePicker__Wrapper--lMP7K {
+        max-height: 80vh;
+        overflow-y: auto;
     }
     
     /* Description Banner */
@@ -185,7 +195,7 @@ $baseUrl = rtrim($appUrl, '/');
     .control-bar {
         background: white;
         border-bottom: 1px solid #e1e3e5;
-        padding: 12px 20px;
+        padding: 8px 20px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -369,10 +379,35 @@ $baseUrl = rtrim($appUrl, '/');
             </button>
             
             <!-- More Actions Button -->
-            <button class="rp-btn rp-btn-secondary">
-                More actions
-                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </button>
+            <!-- More Actions Dropdown -->
+            <div style="position: relative; display: inline-block;">
+                <button class="rp-btn rp-btn-secondary" onclick="toggleDropdown('moreActionsMenu')">
+                    More actions
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                </button>
+                <div id="moreActionsMenu" class="dropdown-content more-actions-menu">
+                    <div class="more-action-item">
+                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/></svg></span>
+                        Copy and edit
+                    </div>
+                    <div class="more-action-item">
+                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/></svg></span>
+                        Add to dashboard
+                    </div>
+                    <div class="more-action-item">
+                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm-1 9v-1h5v2H5a1 1 0 01-1-1zm7 1h4a1 1 0 001-1v-1h-5v2zm0-4h5V8h-5v2zM9 8H4v2h5V8z" clip-rule="evenodd"/></svg></span>
+                        Insert to Google Sheets
+                    </div>
+                    <div class="more-action-item">
+                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg></span>
+                        Refresh data
+                    </div>
+                    <div class="more-action-item text-critical">
+                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></span>
+                        Move to trash
+                    </div>
+                </div>
+            </div>
             
             <!-- Save Button (Primary) -->
             <button class="rp-btn rp-btn-primary" onclick="runReport()">Save</button>
@@ -398,7 +433,7 @@ $baseUrl = rtrim($appUrl, '/');
         
         <!-- Control Bar -->
         <div class="control-bar">
-            <div class="mr-auto grow overflow-hidden md:mr-0">
+            <div class="mr-auto grow md:mr-0">
                 <div class="Look__Toolbar--xFZP+">
                     <div class="flex items-center gap-4">
                         <div class="flex flex-nowrap gap-2">
@@ -406,12 +441,176 @@ $baseUrl = rtrim($appUrl, '/');
                                 <div class="dateRangePicker__Container--2wpat">
                                     <div>
                                         <div class="">
-                                            <div class="DataRangeFilter__Button--A+vc1" id="PrimaryFilter">
+                                            <div class="DataRangeFilter__Button--A+vc1" id="PrimaryFilter" onclick="toggleDatePopover(event)">
                                                 <div class="DataRangeFilter__Content--Q7tLy">
                                                     <svg viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.75 3.5a.75.75 0 0 0-1.5 0v.407a3.075 3.075 0 0 0-.702.252 3.75 3.75 0 0 0-1.64 1.639c-.226.444-.32.924-.365 1.47-.043.531-.043 1.187-.043 2v1.464c0 .813 0 1.469.043 2 .045.546.14 1.026.366 1.47a3.75 3.75 0 0 0 1.639 1.64c.444.226.924.32 1.47.365.531.043 1.187.043 2 .043h3.383c.323 0 .542 0 .735-.02a3.75 3.75 0 0 0 3.344-3.344c.02-.193.02-.412.02-.735v-2.883c0-.813 0-1.469-.043-2-.045-.546-.14-1.026-.366-1.47a3.75 3.75 0 0 0-1.639-1.64 3.076 3.076 0 0 0-.702-.251v-.407a.75.75 0 0 0-1.5 0v.259c-.373-.009-.794-.009-1.268-.009h-1.964c-.474 0-.895 0-1.268.009v-.259Zm-1.521 1.995c.197-.1.458-.17.912-.207.462-.037 1.057-.038 1.909-.038h1.9c.853 0 1.447 0 1.91.038.453.037.714.107.912.207.423.216.767.56.983.984.1.197.17.458.207.912.014.18.024.38.029.609h-9.982c.006-.228.015-.429.03-.61.036-.453.106-.714.206-.911a2.25 2.25 0 0 1 .984-.984Zm-1.229 4.005v1.2c0 .853 0 1.447.038 1.91.037.453.107.714.207.912.216.423.56.767.984.983.197.1.458.17.912.207.462.037 1.057.038 1.909.038h3.306c.385 0 .52-.001.626-.012a2.25 2.25 0 0 0 2.006-2.006c.011-.106.012-.241.012-.626v-2.606h-10Z"></path></svg>
                                                     <div class="DataRangeFilter__Primary--xAbxO">
                                                         <div class="DataRangeFilter__RangeName--Zdy5n">Last 365 days</div>
                                                         <div class="DataRangeFilter__Range--sFRWK">Jan 23, 2025 – Jan 22, 2026</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Date Picker Dropdown -->
+                                            <div class="dateRangePicker__Wrapper--lMP7K" id="DatePopover">
+                                                <div>
+                                                    <div class="calendar__CalendarWrapper--QY1r9 null">
+                                                        <div class="calendar__MonthAndYearWrapper--2C9qJ" style="justify-content: space-between; margin-bottom: 20px;">
+                                                            <button id="btn-prev-month" class="Polaris-Button Polaris-Button--pressable Polaris-Button--variantTertiary Polaris-Button--sizeMedium Polaris-Button--textAlignCenter Polaris-Button--iconOnly" type="button">
+                                                                <span class="Polaris-Button__Icon"><span class="Polaris-Icon"><svg viewBox="0 0 20 20" class="Polaris-Icon__Svg"><path fill-rule="evenodd" d="M11.72 14.53a.75.75 0 0 1 0-1.06L9.06 10l2.66-3.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1 0 1.06l-4 4a.75.75 0 0 1-1.06-1.06l2.66-3.47 4 4a.75.75 0 0 1 .53.22Z" opacity="0"></path><path fill-rule="evenodd" d="M12.78 14.53a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 0-1.06l4-4a.75.75 0 1 1 1.06 1.06L9.31 10l3.47 3.47a.75.75 0 0 1 0 1.06Z"></path></svg></span></span>
+                                                            </button>
+                                                            <div style="display: flex; gap: 10px;">
+                                                                <div class="">
+                                                                    <select id="select-month" style="-webkit-appearance: menulist; appearance: menulist; padding: 6px 12px 6px 8px; border: 1px solid #c9cccf; border-radius: 4px; color: #202223; font-size: 14px; cursor: pointer; background: white; height: 32px;">
+                                                                        <option value="0">January</option><option value="1">February</option><option value="2">March</option><option value="3">April</option>
+                                                                        <option value="4">May</option><option value="5">June</option><option value="6">July</option><option value="7">August</option>
+                                                                        <option value="8">September</option><option value="9">October</option><option value="10">November</option><option value="11">December</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div class="">
+                                                                    <select id="select-year" style="-webkit-appearance: menulist; appearance: menulist; padding: 6px 12px 6px 8px; border: 1px solid #c9cccf; border-radius: 4px; color: #202223; font-size: 14px; cursor: pointer; background: white; height: 32px; min-width: 80px;">
+                                                                        <?php 
+                                                                        $currentYear = date('Y');
+                                                                        for($i = $currentYear - 10; $i <= $currentYear + 10; $i++) {
+                                                                            $selected = ($i == $currentYear) ? 'selected' : '';
+                                                                            echo "<option value='$i' $selected>$i</option>";
+                                                                        }
+                                                                        ?>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <button id="btn-next-month" class="Polaris-Button Polaris-Button--pressable Polaris-Button--variantTertiary Polaris-Button--sizeMedium Polaris-Button--textAlignCenter Polaris-Button--iconOnly" type="button">
+                                                                <span class="Polaris-Button__Icon"><span class="Polaris-Icon"><svg viewBox="0 0 20 20" class="Polaris-Icon__Svg"><path fill-rule="evenodd" d="M7.22 14.53a.75.75 0 0 1 0-1.06L9.94 10 7.22 6.53a.75.75 0 0 1 1.06-1.06l4 4a.75.75 0 0 1 0 1.06l-4 4a.75.75 0 0 1-1.06 0Z"></path></svg></span></span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="calendar__Months--U6sTI calendar__MonthsHorizontal--2IeDc">
+                                                            <div class="month__Month--ePVbp">
+                                                                <div id="cal-left-title" style="text-align: center; font-weight: 600; font-size: 14px; margin-bottom: 12px;"></div>
+                                                                <div class="month__WeekDays--BOPP8">
+                                                                    <span class="month__WeekDay--pz65Q">Su</span><span class="month__WeekDay--pz65Q">Mo</span><span class="month__WeekDay--pz65Q">Tu</span><span class="month__WeekDay--pz65Q">We</span><span class="month__WeekDay--pz65Q">Th</span><span class="month__WeekDay--pz65Q">Fr</span><span class="month__WeekDay--pz65Q">Sa</span>
+                                                                </div>
+                                                                <div class="month__Days--pEM0e" id="cal-left-grid">
+                                                                    <!-- Days will be injected here -->
+                                                                </div>
+                                                            </div>
+                                                            <div class="month__Month--ePVbp">
+                                                                <div id="cal-right-title" style="text-align: center; font-weight: 600; font-size: 14px; margin-bottom: 12px;"></div>
+                                                                <div class="month__WeekDays--BOPP8">
+                                                                    <span class="month__WeekDay--pz65Q">Su</span><span class="month__WeekDay--pz65Q">Mo</span><span class="month__WeekDay--pz65Q">Tu</span><span class="month__WeekDay--pz65Q">We</span><span class="month__WeekDay--pz65Q">Th</span><span class="month__WeekDay--pz65Q">Fr</span><span class="month__WeekDay--pz65Q">Sa</span>
+                                                                </div>
+                                                                <div class="month__Days--pEM0e" id="cal-right-grid">
+                                                                    <!-- Days will be injected here -->
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="DateRange__Times--9jN9+">
+                                                            <div class="DateRange__Time--n6JBi">
+                                                                <div class="Time__Time--E2Jl5">12:00 AM</div>
+                                                            </div>
+                                                            <div class="DateRange__Time--n6JBi">
+                                                                <div class="Time__Time--E2Jl5">11:59 PM</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="dateRangePicker__RightColumn--FyEor">
+                                                    <div class="staticRange__Wrapper--EIsaL" style="margin-bottom: 12px;">
+                                                        <div class="staticRange__Btn--N7i+3">
+                                                            <div id="select-preset" class="" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border: 1px solid #c9cccf; border-radius: 4px; background: white; height: 32px; cursor: pointer;">
+                                                                <span class="preset-label-text" style="font-size: 14px; color: #202223;">Last 30 days</span>
+                                                                <svg viewBox="0 0 20 20" style="width: 16px; height: 16px; fill: #5c5f62;"><path d="M10 14a.997.997 0 0 1-.707-.293l-5-5a.999.999 0 1 1 1.414-1.414L10 11.586l4.293-4.293a.999.999 0 1 1 1.414 1.414l-5 5A.997.997 0 0 1 10 14z"></path></svg>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Modal Injection (Ideally at bottom of body, but putting here for context scope if needed, though absolute positioning works) -->
+                                                    <div id="PresetModal" class="presetModal__Wrapper--J8k2L">
+                                                        <div class="presetModal__Content--m0zP1">
+                                                            <div class="presetModal__Header--V8j2e">
+                                                                <div class="presetModal__Title--T7f2z">Pick date range</div>
+                                                                <div class="modal__Close--XyZ12" style="cursor: pointer;">
+                                                                    <svg viewBox="0 0 20 20" style="width: 20px; height: 20px; fill: #5c5f62;"><path fill-rule="evenodd" d="M15.707 4.293a1 1 0 0 1 0 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 1.414-1.414L10 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
+                                                                </div>
+                                                            </div>
+                                                            <div class="presetModal__Body--K2l9j">
+                                                                <div class="presetCard__Item--x9-1Z" data-value="today"><div class="presetCard__Label--y8H21">Today</div><div class="presetCard__Range--k7J3g">Jan 23, 2026</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="yesterday"><div class="presetCard__Label--y8H21">Yesterday</div><div class="presetCard__Range--k7J3g">Jan 22, 2026</div></div>
+                                                                <!-- Empty cards for layout matching -->
+                                                                <div></div><div></div>
+                                                                
+                                                                <div class="presetCard__Item--x9-1Z" data-value="last7"><div class="presetCard__Label--y8H21">Last 7 days</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="last30"><div class="presetCard__Label--y8H21">Last 30 days</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="last90"><div class="presetCard__Label--y8H21">Last 90 days</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="last365"><div class="presetCard__Label--y8H21">Last 365 days</div></div>
+                                                                
+                                                                <div class="presetCard__Item--x9-1Z" data-value="last_week"><div class="presetCard__Label--y8H21">Last week</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="last_month"><div class="presetCard__Label--y8H21">Last month</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="last_quarter"><div class="presetCard__Label--y8H21">Last quarter</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="last_year"><div class="presetCard__Label--y8H21">Last year</div></div>
+                                                                
+                                                                <div class="presetCard__Item--x9-1Z" data-value="wtd"><div class="presetCard__Label--y8H21">Week to date</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="mtd"><div class="presetCard__Label--y8H21">Month to date</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="qtd"><div class="presetCard__Label--y8H21">Quarter to date</div></div>
+                                                                <div class="presetCard__Item--x9-1Z" data-value="ytd"><div class="presetCard__Label--y8H21">Year to date</div></div>
+                                                                
+                                                                <div class="presetCard__Item--x9-1Z" data-value="all_time"><div class="presetCard__Label--y8H21">All Time</div></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="dateInputs__Wrapper--OHckw" style="margin-bottom:16px;">
+                                                        <span class="dateInputs__Item--cZTCB dateInputs__ItemActive--SCfoG" style="flex: 1;">
+                                                            <div class="Polaris-TextField Polaris-TextField--hasValue">
+                                                                <input id="input-start-date" class="Polaris-TextField__Input" type="text" value="" style="text-align: center;">
+                                                                <div class="Polaris-TextField__Backdrop"></div>
+                                                            </div>
+                                                        </span>
+                                                        <span style="margin:0 4px">–</span>
+                                                        <span class="dateInputs__Item--cZTCB" style="flex: 1;">
+                                                            <div class="Polaris-TextField Polaris-TextField--hasValue">
+                                                                <input id="input-end-date" class="Polaris-TextField__Input" type="text" value="" style="text-align: center;">
+                                                                <div class="Polaris-TextField__Backdrop"></div>
+                                                            </div>
+                                                        </span>
+                                                    </div>
+
+                                                    <div style="margin-top:12px; display: flex; align-items: center; justify-content: space-between;">
+                                                        <label class="Polaris-Choice Polaris-Checkbox__ChoiceLabel" style="margin: 0; display: flex; align-items: center;">
+                                                            <span class="Polaris-Choice__Control">
+                                                                <span class="Polaris-Checkbox">
+                                                                    <input id="check-compare" type="checkbox" class="Polaris-Checkbox__Input" aria-invalid="false" role="checkbox" aria-checked="false" value="">
+                                                                    <span class="Polaris-Checkbox__Backdrop"></span>
+                                                                    <span class="Polaris-Checkbox__Icon"><svg viewBox="0 0 20 20" style="width: 12px; height: 12px; fill: currentColor;"><path fill-rule="evenodd" d="M15.03 5.53a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0L4.47 9.59a.75.75 0 0 1 1.06-1.06l2.72 2.72 5.72-5.72a.75.75 0 0 1 1.06 0Z"></path></svg></span>
+                                                                </span>
+                                                            </span>
+                                                            <span class="Polaris-Choice__Label"><span class="Polaris-Text--root Polaris-Text--bodyMd">Compare</span></span>
+                                                        </label>
+
+                                                        <div class="compareMode__Wrapper--j8Lka">
+                                                            <div id="compare-mode-trigger" class="" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 4px 8px; border: 1px solid #c9cccf; border-radius: 4px; background: white; height: 28px; cursor: pointer; min-width: 140px;">
+                                                                <span id="compare-mode-text" style="font-size: 13px; color: #202223;">Previous period</span>
+                                                                <svg viewBox="0 0 20 20" style="width: 16px; height: 16px; fill: #5c5f62;"><path d="M10 14a.997.997 0 0 1-.707-.293l-5-5a.999.999 0 1 1 1.414-1.414L10 11.586l4.293-4.293a.999.999 0 1 1 1.414 1.414l-5 5A.997.997 0 0 1 10 14z"></path></svg>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="dateInputs__Wrapper--OHckw" style="margin-top:6px; opacity: 0.5;">
+                                                        <span class="dateInputs__Item--cZTCB">
+                                                            <div class="Polaris-TextField"><input id="input-compare-start" class="Polaris-TextField__Input" type="text" readonly></div>
+                                                        </span>
+                                                        <span style="margin:0 4px">–</span>
+                                                        <span class="dateInputs__Item--cZTCB">
+                                                            <div class="Polaris-TextField"><input id="input-compare-end" class="Polaris-TextField__Input" type="text" readonly></div>
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    <div class="dateRangePicker__Actions--0E+hP">
+                                                        <button class="Polaris-Button Polaris-Button--pressable rp-btn rp-btn-secondary" type="button" onclick="toggleDatePopover()">
+                                                            <span class="Polaris-Text--root Polaris-Text--bodySm Polaris-Text--medium">Cancel</span>
+                                                        </button>
+                                                        <button class="Polaris-Button Polaris-Button--pressable rp-btn rp-btn-primary" type="button" onclick="applyDateRange()">
+                                                            <span class="Polaris-Text--root Polaris-Text--bodySm Polaris-Text--medium">Apply</span>
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -423,7 +622,7 @@ $baseUrl = rtrim($appUrl, '/');
                         <div class="relative">
                             <div class="flex items-center gap-2 overflow-hidden">
                                 <span class="">
-                                    <div class="FilterPill__Filter--h7eN3">
+                                    <div class="FilterPill__Filter--h7eN3" id="ProcessedAtFilter" onclick="toggleProcessedAtFilter()">
                                         <div class="FilterPill__Content--js97k">
                                             <strong class="Polaris-Text--root Polaris-Text--bodySm">Processed At</strong>
                                             <span class="Polaris-Text--root Polaris-Text--bodySm Polaris-Text--subdued"> last 365 days</span>
@@ -634,24 +833,7 @@ $baseUrl = rtrim($appUrl, '/');
     .gap-2 { gap: 0.5rem; }
     .ml-4 { margin-left: 1rem; }
     
-    .Polaris-Button--variantSecondary {
-        background: white;
-        border: 1px solid #c9cccf;
-        color: #202223;
-        border-radius: 8px; /* Rounded look from image */
-        padding: 4px 10px 4px;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        box-shadow: 0 1px 0 rgba(0,0,0,0.05);
-    }
-    .Polaris-Button--variantSecondary:hover {
-        background: #f6f6f7;
-        border-color: #c9cccf;
-    }
+    
 
     .Polaris-Button--variantTertiary {
         background: transparent;
@@ -714,7 +896,7 @@ $baseUrl = rtrim($appUrl, '/');
         align-items: center;
     }
     
-    .DataRangeFilter__Button--A\+vc1 {
+    .DataRangeFilter__Button--A\+vc1, #PrimaryFilter {
         display: flex;
         align-items: center;
         background: white;
@@ -724,14 +906,18 @@ $baseUrl = rtrim($appUrl, '/');
         cursor: pointer;
         height: 32px;
         box-sizing: border-box;
+        position: relative;
+        z-index: 10;
+        user-select: none;
     }
-    .DataRangeFilter__Button--A\+vc1:hover {
+    .DataRangeFilter__Button--A\+vc1:hover, #PrimaryFilter:hover {
         background: #f6f6f7;
     }
     .DataRangeFilter__Content--Q7tLy {
         display: flex;
         align-items: center;
         gap: 8px;
+        pointer-events: none; /* Let clicks pass to the button */
     }
     .DataRangeFilter__Content--Q7tLy svg {
         width: 16px;
@@ -804,7 +990,391 @@ $baseUrl = rtrim($appUrl, '/');
     .flex-nowrap { flex-wrap: nowrap; }
     .mr-auto { margin-right: auto; }
     .overflow-hidden { overflow: hidden; }
+    /* Date Range Picker Popover Styles */
+    .dateRangePicker__Wrapper--lMP7K {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 1000;
+        background: white;
+        border: 1px solid #dfe3e8;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 16px;
+        margin-top: 8px;
+        width: max-content;
+    }
+    
+    .dateRangePicker__Wrapper--lMP7K.show {
+        display: flex;
+        gap: 20px;
+    }
+    
+    /* Internal Popover Layout */
+    .calendar__CalendarWrapper--QY1r9 {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .calendar__MonthAndYearWrapper--2C9qJ {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .calendar__MonthsHorizontal--2IeDc {
+        display: flex;
+        gap: 20px;
+    }
+    
+    .month__WeekDays--BOPP8 {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        text-align: center;
+        margin-bottom: 8px;
+    }
+    
+    .month__Days--pEM0e {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+    }
+    
+    .calendar__MonthPicker--tESMn select,
+    .calendar__YearPicker--BDZ1N select {
+        padding: 4px 8px;
+        border: 1px solid #c9cccf;
+        border-radius: 4px;
+    }
+    
+    /* Day Cells */
+    .dayCell__Day--0NGiF {
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 12px;
+        border-radius: 4px;
+    }
+    .dayCell__Day--0NGiF:hover {
+        background-color: #f1f2f3;
+    }
+    .dayCell__DayInRange--l97gF {
+        background-color: #f1f2f3;
+    }
+    .dayCell__DayIsStartRange--p80p4, 
+    .dayCell__DayIsEndRange--EGp-Q {
+        background-color: #202223;
+        color: white;
+    }
+    .dayCell__DayPassive--rQM2t {
+        color: #babec3;
+    }
+    
+    /* Right Column (Preset Ranges) */
+    .dateRangePicker__RightColumn--FyEor {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        border-left: 1px solid #e1e3e5;
+        padding-left: 20px;
+        min-width: 200px;
+    }
+    
+    .DateRange__Times--9jN9\+ {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-top: 1px solid #e1e3e5;
+        margin-top: 10px;
+    }
+    
+    .dateInputs__Wrapper--OHckw {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .Polaris-TextField__Input {
+        width: 100%;
+        padding: 6px;
+        border: 1px solid #c9cccf;
+        border-radius: 4px;
+    }
+    
+    .dateRangePicker__Actions--0E\+hP {
+        display: flex;
+        justify-content: flex-end; /* Align buttons to right */
+        gap: 8px;
+        margin-top: auto;
+        padding-top: 16px;
+    }
+    
+    /* Wrapper for relative positioning */
+    .PrimaryFilters__PrimaryFilter--32fOO {
+        position: relative;
+    }
+    /* Time Selector Fix */
+    .Time__Time--E2Jl5 {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 13px;
+        color: #5c5f62;
+        padding-top: 8px;
+    }
+    .DateRange__Time--n6JBi {
+        flex: 1;
+        text-align: center;
+    }
+    .Time__Separator--lMBju {
+        margin: 0 4px;
+    }
+    
+    /* Layout Adjustments */
+    .calendar__MonthsHorizontal--2IeDc {
+        gap: 16px;
+    }
+    .dayCell__Day--0NGiF {
+        width: 32px;
+        height: 32px;
+        font-size: 13px;
+    }
+    
+    /* Checkbox Styling */
+    .Polaris-Checkbox {
+        position: relative;
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        vertical-align: middle;
+        margin-right: 8px;
+        box-sizing: border-box;
+    }
+    .Polaris-Checkbox__Input {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 16px !important;
+        height: 16px !important;
+        opacity: 0;
+        z-index: 2;
+        cursor: pointer;
+        padding: 0;
+        margin: 0;
+    }
+    .Polaris-Checkbox__Backdrop {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: white;
+        border: 1px solid #babfc3; /* Standard Polaris border color */
+        border-radius: 4px;
+        pointer-events: none;
+        box-sizing: border-box;
+        transition: border-color 0.2s cubic-bezier(0.64, 0, 0.35, 1);
+    }
+    .Polaris-Checkbox__Input {
+        background: #202223 !important;
+        border-color: #202223 !important;
+    }
+    .Polaris-Checkbox__Icon {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0;
+        color: white; /* Ensures SVG uses this color */
+    }
+    .Polaris-Checkbox__Input:checked ~ .Polaris-Checkbox__Backdrop ~ .Polaris-Checkbox__Icon {
+        opacity: 1;
+    }
+    
+    /* Apply Button Styling */
+   
+    
+    /* Previous Period Button */
+    .Polaris-Button--disclosure {
+        justify-content: space-between;
+    }
+    
+    /* Selected Range Highlight */
+    .dayCell__DayIsStartRange--p80p4, .dayCell__DayIsEndRange--EGp-Q {
+        background: #202223;
+        border-radius: 4px;
+    }
+    .dayCell__DayInRange--l97gF {
+        background: #f1f2f3;
+        border-radius: 0; 
+    }
+    /* Round corners for start/end of range if they are middle of week */
+    .dayCell__DayIsStartRange--p80p4 { border-top-right-radius: 0; border-bottom-right-radius: 0; border-radius: 4px 0 0 4px; }
+    .dayCell__DayIsEndRange--EGp-Q { border-top-left-radius: 0; border-bottom-left-radius: 0; border-radius: 0 4px 4px 0; }
+    
+    
+    /* Popover Layout Fixes */
+    .dateRangePicker__RightColumn--FyEor {
+        min-width: 280px;
+        border-left: 1px solid #e1e3e5;
+        padding-left: 20px;
+    }
+    
+    .Polaris-Choice {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+        margin-top: 12px;
+    }
+    .active-filter-pill {
+        background: #f1f2f3;
+    }
+    
+    /* Preset Modal Styles */
+    .presetModal__Wrapper--J8k2L {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+    }
+    .presetModal__Wrapper--J8k2L.show {
+        display: flex;
+    }
+    .presetModal__Content--m0zP1 {
+        background: white;
+        border-radius: 8px;
+        width: 800px;
+        max-width: 90vw;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .presetModal__Header--V8j2e {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e1e3e5;
+    }
+    .presetModal__Title--T7f2z {
+        font-weight: 600;
+        font-size: 16px;
+    }
+    .presetModal__Body--K2l9j {
+        padding: 20px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+    .presetCard__Item--x9-1Z {
+        border: 1px solid #dfe3e8;
+        border-radius: 8px;
+        padding: 12px;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .presetCard__Item--x9-1Z:hover {
+        border-color: #5c5f62;
+    }
+    .presetCard__Label--y8H21 {
+        font-weight: 600;
+        font-size: 13px;
+        color: #202223;
+        margin-bottom: 4px;
+    }
+    .presetCard__Range--k7J3g {
+        font-size: 12px;
+        color: #6d7175;
+    }
+    /* Compare Modal Specific */
+    #ComparePresetModal .presetCard__Item--x9-1Z {
+        /* Optional overrides */
+    }
+    
+    /* More Actions Dropdown */
+    .more-actions-menu {
+        min-width: 220px;
+        border-radius: 8px;
+        padding: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border: 1px solid #e1e3e5;
+        top: calc(100% + 4px);
+        right: 0; 
+        left: auto;
+    }
+    .more-action-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        font-size: 14px;
+        color: #202223;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.1s;
+        gap: 12px;
+    }
+    .more-action-item:hover {
+        background-color: #f1f2f3;
+    }
+    .more-action-icon {
+        width: 20px;
+        height: 20px;
+        color: #5c5f62;
+    }
+    .more-action-item.text-critical {
+        color: #d82c0d;
+    }
+    .more-action-item.text-critical .more-action-icon {
+        color: #d82c0d;
+    }
 </style>
+
+<!-- Compare Mode Trigger Replacement (Search target by content, waiting for injection) -->
+<!-- Modal Injection -->
+<div id="ComparePresetModal" class="presetModal__Wrapper--J8k2L">
+    <div class="presetModal__Content--m0zP1" style="width: 800px;">
+        <div class="presetModal__Header--V8j2e">
+            <div class="presetModal__Title--T7f2z">Pick date range</div>
+            <div class="modal__Close--XyZ12" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" style="width: 20px; height: 20px; fill: #5c5f62;"><path fill-rule="evenodd" d="M15.707 4.293a1 1 0 0 1 0 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 1.414-1.414L10 8.586l4.293-4.293a1 1 0 0 1 1.414 0z"/></svg>
+            </div>
+        </div>
+        <div class="presetModal__Body--K2l9j">
+            <div class="presetCard__Item--x9-1Z" data-value="previous_period">
+                <div class="presetCard__Label--y8H21">Previous period</div>
+                <div class="presetCard__Range--k7J3g" id="cp-previous_period">--</div>
+            </div>
+            <div class="presetCard__Item--x9-1Z" data-value="previous_week">
+                <div class="presetCard__Label--y8H21">Previous week</div>
+                <div class="presetCard__Range--k7J3g" id="cp-previous_week">--</div>
+            </div>
+            <div class="presetCard__Item--x9-1Z" data-value="previous_month">
+                <div class="presetCard__Label--y8H21">Previous month</div>
+                <div class="presetCard__Range--k7J3g" id="cp-previous_month">--</div>
+            </div>
+            <div class="presetCard__Item--x9-1Z" data-value="previous_year">
+                <div class="presetCard__Label--y8H21">Previous year</div>
+                <div class="presetCard__Range--k7J3g" id="cp-previous_year">--</div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
     <?php
@@ -845,14 +1415,479 @@ $baseUrl = rtrim($appUrl, '/');
 
     // Close when clicking outside
     window.onclick = function(event) {
-        if (!event.target.matches('.btn') && !event.target.matches('.dropdown-trigger') && !event.target.closest('.dropdown-trigger')) {
+        if (!event.target.matches('.btn') && !event.target.matches('.dropdown-trigger') && !event.target.closest('.dropdown-trigger') && !event.target.closest('#DatePopover')) {
             var dropdowns = document.getElementsByClassName("dropdown-content");
             for (var i = 0; i < dropdowns.length; i++) {
                 var openDropdown = dropdowns[i];
-                if (openDropdown.classList.contains('show') && !openDropdown.contains(event.target)) {
+                if (openDropdown.classList.contains('show')) {
                     openDropdown.classList.remove('show');
                 }
             }
+            // Close datepicker if open
+            const datePop = document.getElementById('DatePopover');
+            if(datePop && datePop.classList.contains('show')) {
+                datePop.classList.remove('show');
+            }
+        }
+    }
+
+    // --- Date Picker Logic ---
+    let datePickerInstance = null;
+
+    class DateRangePicker {
+        constructor() {
+            this.startDate = new Date();
+            this.startDate.setDate(new Date().getDate() - 30); // Default to last 30 days
+            this.endDate = new Date();
+            this.currentLabel = "Last 30 days"; 
+            this.compareMode = "previous_period";
+            // Initial view: Left grid = EndDate Month - 1
+            this.viewDate = new Date(this.endDate.getFullYear(), this.endDate.getMonth() - 1, 1); 
+            this.init();
+        }
+
+        init() {
+            this.cacheDOM();
+            if(this.els.popover) {
+                // this.populateYears(); // Handled by PHP
+                this.render();
+                this.bindEvents();
+                this.updateInputs();
+                this.updateMainButton();
+                this.updateCompareInputs();
+            }
+        }
+
+        cacheDOM() {
+            this.els = {
+                popover: document.getElementById('DatePopover'),
+                trigger: document.getElementById('PrimaryFilter'),
+                leftTitle: document.getElementById('cal-left-title'),
+                rightTitle: document.getElementById('cal-right-title'),
+                leftGrid: document.getElementById('cal-left-grid'),
+                rightGrid: document.getElementById('cal-right-grid'),
+                inputStart: document.getElementById('input-start-date'),
+                inputEnd: document.getElementById('input-end-date'),
+                btnPrev: document.getElementById('btn-prev-month'),
+                btnNext: document.getElementById('btn-next-month'),
+                selectMonth: document.getElementById('select-month'),
+                selectYear: document.getElementById('select-year'),
+                selectPreset: document.getElementById('select-preset'), 
+                selectCompareMode: document.getElementById('select-compare-mode'), // Legacy? Removing from usage but keeping mapping just in case
+                compareModeTrigger: document.getElementById('compare-mode-trigger'),
+                compareModeText: document.getElementById('compare-mode-text'),
+                presetModal: document.getElementById('PresetModal'), 
+                comparePresetModal: document.getElementById('ComparePresetModal'),
+                inputCompareStart: document.getElementById('input-compare-start'),
+                inputCompareEnd: document.getElementById('input-compare-end'),
+                checkCompare: document.getElementById('check-compare'),
+            };
+        }
+
+        bindEvents() {
+            // Navigation
+            if(this.els.btnPrev) this.els.btnPrev.addEventListener('click', (e) => { e.stopPropagation(); this.changeMonth(-1); });
+            if(this.els.btnNext) this.els.btnNext.addEventListener('click', (e) => { e.stopPropagation(); this.changeMonth(1); });
+
+            // Preset Trigger
+            if(this.els.selectPreset) {
+                this.els.selectPreset.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.togglePresetModal();
+                });
+            }
+            
+            // Compare Trigger
+            if(this.els.compareModeTrigger) {
+                this.els.compareModeTrigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleCompareModal();
+                });
+            }
+
+            // Presets Modal
+            if(this.els.presetModal) {
+                 this.els.presetModal.addEventListener('click', (e) => {
+                     if(e.target === this.els.presetModal) this.togglePresetModal();
+                 });
+                 const cards = this.els.presetModal.querySelectorAll('.presetCard__Item--x9-1Z');
+                 cards.forEach(card => {
+                     card.addEventListener('click', (e) => {
+                         e.stopPropagation();
+                         this.handlePresetChange(card.dataset.value);
+                         this.togglePresetModal();
+                     });
+                 });
+                 const closeBtn = this.els.presetModal.querySelector('.modal__Close--XyZ12');
+                 if(closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.togglePresetModal(); });
+            }
+
+            // Compare Presets Modal
+            if(this.els.comparePresetModal) {
+                 this.els.comparePresetModal.addEventListener('click', (e) => {
+                     if(e.target === this.els.comparePresetModal) this.toggleCompareModal();
+                 });
+                 const cards = this.els.comparePresetModal.querySelectorAll('.presetCard__Item--x9-1Z');
+                 cards.forEach(card => {
+                     card.addEventListener('click', (e) => {
+                         e.stopPropagation();
+                         this.handleComparePresetChange(card.dataset.value);
+                         this.toggleCompareModal();
+                     });
+                 });
+                 const closeBtn = this.els.comparePresetModal.querySelector('.modal__Close--XyZ12');
+                 if(closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.toggleCompareModal(); });
+            }
+
+            // Compare Checkbox
+            if(this.els.checkCompare) {
+                this.els.checkCompare.addEventListener('change', (e) => {
+                    this.toggleCompare(e.target.checked);
+                });
+            }
+            
+            // Month/Year Selectors
+            if(this.els.selectMonth) {
+                this.els.selectMonth.addEventListener('change', (e) => {
+                    const val = parseInt(e.target.value);
+                    this.viewDate = new Date(this.viewDate.getFullYear(), val, 1);
+                    this.render();
+                });
+            }
+            if(this.els.selectYear) {
+               this.els.selectYear.addEventListener('change', (e) => {
+                    const val = parseInt(e.target.value);
+                    this.viewDate = new Date(val, this.viewDate.getMonth(), 1);
+                    this.render();
+                });
+            }
+        }
+        
+        togglePresetModal() {
+            if(this.els.presetModal) {
+                this.els.presetModal.classList.toggle('show');
+            }
+        }
+
+        toggleCompareModal() {
+            if(this.els.comparePresetModal) {
+                if(!this.els.comparePresetModal.classList.contains('show')) {
+                    // Update texts before showing
+                    const modes = ['previous_period', 'previous_week', 'previous_month', 'previous_year'];
+                    modes.forEach(m => {
+                        const range = this.calculateCompareRange(m);
+                        const el = document.getElementById('cp-' + m);
+                        if(el && range.start && range.end) {
+                            const s = range.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            const e = range.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            el.textContent = (range.start.getFullYear() === range.end.getFullYear()) 
+                                ? `${s.split(',')[0]} – ${e}` 
+                                : `${s} – ${e}`; // simplified formatting
+                        }
+                    });
+                }
+                this.els.comparePresetModal.classList.toggle('show');
+            }
+        }
+
+        handleComparePresetChange(value) {
+            this.compareMode = value;
+            // Update trigger text
+            let label = "Previous period";
+            if(value === 'previous_year') label = "Previous year";
+            if(value === 'previous_month') label = "Previous month";
+            if(value === 'previous_week') label = "Previous week";
+            
+            if(this.els.compareModeText) this.els.compareModeText.textContent = label;
+            
+            this.updateCompareInputs();
+        }
+
+        calculateCompareRange(mode) {
+             if (!this.startDate || !this.endDate) return { start: null, end: null };
+             
+             let pStart = new Date(this.startDate);
+             let pEnd = new Date(this.endDate);
+             
+             // Reset time
+             pStart.setHours(0,0,0,0);
+             pEnd.setHours(0,0,0,0);
+
+             if (mode === 'previous_period') {
+                 const diffTime = Math.abs(this.endDate - this.startDate);
+                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                 // End is 1 day before start
+                 const newEnd = new Date(this.startDate);
+                 newEnd.setDate(newEnd.getDate() - 1);
+                 pEnd = newEnd;
+                 
+                 const newStart = new Date(pEnd);
+                 newStart.setDate(newStart.getDate() - diffDays);
+                 pStart = newStart;
+             } else if (mode === 'previous_year') {
+                 pStart.setFullYear(pStart.getFullYear() - 1);
+                 pEnd.setFullYear(pEnd.getFullYear() - 1);
+             } else if (mode === 'previous_month') {
+                 pStart.setMonth(pStart.getMonth() - 1);
+                 pEnd.setMonth(pEnd.getMonth() - 1);
+             } else if (mode === 'previous_week') {
+                 pStart.setDate(pStart.getDate() - 7);
+                 pEnd.setDate(pEnd.getDate() - 7);
+             }
+             return { start: pStart, end: pEnd };
+        }
+        
+        handlePresetChange(value) {
+            const today = new Date();
+            let start = new Date();
+            let end = new Date();
+            let label = "Custom";
+            
+            switch(value) {
+                case 'today':
+                    label = "Today";
+                    break;
+                case 'yesterday':
+                    start.setDate(today.getDate() - 1);
+                    end.setDate(today.getDate() - 1);
+                    label = "Yesterday";
+                    break;
+                case 'last7':
+                    start.setDate(today.getDate() - 7);
+                    // end is today
+                    label = "Last 7 days";
+                    break;
+                case 'last30':
+                    start.setDate(today.getDate() - 30);
+                    // end is today
+                    label = "Last 30 days";
+                    break;
+                case 'last90':
+                    start.setDate(today.getDate() - 90);
+                    label = "Last 90 days";
+                    break;
+                case 'last365':
+                    start.setDate(today.getDate() - 365);
+                    label = "Last 365 days";
+                    break;
+                case 'last_month': 
+                     start.setMonth(start.getMonth() - 1);
+                     start.setDate(1);
+                     end.setDate(0); 
+                     label = "Last month";
+                     break; 
+                case 'last_year':
+                     start.setFullYear(start.getFullYear() - 1);
+                     start.setMonth(0); start.setDate(1);
+                     end.setDate(31); 
+                     end.setMonth(11);
+                     end.setFullYear(end.getFullYear() - 1); // Fixed year basic logic
+                     label = "Last year";
+                     break;
+                default:
+                    return;
+            }
+            
+            this.startDate = start;
+            this.endDate = end;
+            // Set viewDate to Start Month (Left Grid)
+            this.viewDate = new Date(start.getFullYear(), start.getMonth(), 1);
+            
+            // Update button text
+            if(this.els.selectPreset) {
+                const textSpan = this.els.selectPreset.querySelector('.preset-label-text');
+                if(textSpan) textSpan.textContent = label;
+            }
+            this.currentLabel = label;
+
+            this.render();
+            this.updateInputs();
+            if(this.els.checkCompare && this.els.checkCompare.checked) {
+                this.toggleCompare(true); // Recalculate compare dates
+            }
+        }
+
+
+        
+        // populateYears removed - handled in PHP
+
+        toggleCompare(isChecked) {
+             if(!this.els.inputCompareStart || !this.els.inputCompareEnd) return;
+             
+             // Update aria-checked
+             if(this.els.checkCompare) {
+                 this.els.checkCompare.setAttribute('aria-checked', isChecked ? 'true' : 'false');
+             }
+
+             const wrapper = this.els.inputCompareStart.closest('.dateInputs__Wrapper--OHckw');
+             if(wrapper) wrapper.style.opacity = isChecked ? '1' : '0.5';
+             
+             // Enable/Disable inputs
+             this.els.inputCompareStart.disabled = !isChecked; // Using disabled attribute is better for 'showing' state
+             this.els.inputCompareEnd.disabled = !isChecked;
+             
+             if(isChecked) {
+                 this.updateCompareInputs(); // Force update values when checking
+             }
+        }
+
+        toggle() {
+            this.els.popover.classList.toggle('show');
+        }
+        
+        changeMonth(delta) {
+            this.viewDate.setMonth(this.viewDate.getMonth() + delta);
+            this.render();
+        }
+
+        render() {
+            // viewDate now represents the LEFT (start) Month
+            const leftYear = this.viewDate.getFullYear();
+            const leftMonth = this.viewDate.getMonth();
+            const rightDate = new Date(leftYear, leftMonth + 1, 1);
+            const rightYear = rightDate.getFullYear();
+            const rightMonth = rightDate.getMonth();
+
+            // Update Selectors (to Left Month)
+            if(this.els.selectMonth) this.els.selectMonth.value = leftMonth;
+            if(this.els.selectYear) this.els.selectYear.value = leftYear;
+
+            // Update Grid Titles (Above grids)
+            if(this.els.leftTitle) this.els.leftTitle.textContent = this.viewDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            if(this.els.rightTitle) this.els.rightTitle.textContent = rightDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+            if(this.els.leftGrid) this.renderGrid(this.els.leftGrid, leftYear, leftMonth);
+            if(this.els.rightGrid) this.renderGrid(this.els.rightGrid, rightYear, rightMonth);
+        }
+
+        renderGrid(container, year, month) {
+            container.innerHTML = '';
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'dayCell__Day--0NGiF dayCell__DayPassive--rQM2t'; 
+                container.appendChild(empty);
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const date = new Date(year, month, d);
+                const btn = document.createElement('button');
+                btn.className = 'dayCell__Day--0NGiF';
+                btn.textContent = d;
+                
+                const t = date.getTime();
+                const s = this.startDate ? new Date(this.startDate.getFullYear(), this.startDate.getMonth(), this.startDate.getDate()).getTime() : null;
+                const e = this.endDate ? new Date(this.endDate.getFullYear(), this.endDate.getMonth(), this.endDate.getDate()).getTime() : null;
+
+                if (s && t === s) btn.classList.add('dayCell__DayIsStartRange--p80p4');
+                if (e && t === e) btn.classList.add('dayCell__DayIsEndRange--EGp-Q');
+                if (s && e && t > s && t < e) btn.classList.add('dayCell__DayInRange--l97gF');
+                
+                btn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    this.handleDayClick(date);
+                });
+                container.appendChild(btn);
+            }
+        }
+
+        handleDayClick(date) {
+            if (this.startDate && this.endDate) {
+                this.startDate = date;
+                this.endDate = null;
+            } else if (!this.startDate) {
+                this.startDate = date;
+            } else if (!this.endDate) {
+                if (date < this.startDate) {
+                    this.endDate = this.startDate;
+                    this.startDate = date;
+                } else {
+                    this.endDate = date;
+                }
+            } else {
+                this.startDate = date;
+            }
+            this.updateInputs();
+            this.render();
+        }
+
+        updateInputs() {
+            if (this.els.inputStart && this.startDate) this.els.inputStart.value = this.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            if (this.els.inputEnd && this.endDate) this.els.inputEnd.value = this.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            this.updateCompareInputs(); // Keep compare inputs in sync
+        }
+        
+        updateMainButton() {
+             const rangeTextDOM = document.querySelector('.DataRangeFilter__Range--sFRWK');
+             const rangeNameDOM = document.querySelector('.DataRangeFilter__RangeName--Zdy5n');
+             
+             const s = this.startDate ? this.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '...';
+             const e = this.endDate ? this.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '...';
+             
+             if(rangeTextDOM) rangeTextDOM.textContent = `${s} – ${e}`;
+             if(rangeNameDOM && this.currentLabel) rangeNameDOM.textContent = this.currentLabel;
+        }
+
+        updateCompareInputs() {
+             if(!this.els.inputCompareStart || !this.els.inputCompareEnd) return;
+             
+             if (this.startDate && this.endDate) {
+                 const range = this.calculateCompareRange(this.compareMode || 'previous_period');
+                 
+                 if(range.start && range.end) {
+                     this.els.inputCompareStart.value = range.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                     this.els.inputCompareEnd.value = range.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                 }
+             } else {
+                 this.els.inputCompareStart.value = "";
+                 this.els.inputCompareEnd.value = "";
+             }
+        }
+    }
+
+    // Global Functions for HTML onclicks
+    function toggleDatePopover(event) {
+        if(event) event.stopPropagation();
+        if (datePickerInstance) datePickerInstance.toggle();
+    }
+    
+    function applyDateRange() {
+        if (datePickerInstance) {
+            datePickerInstance.updateMainButton(); // This will now use this.currentLabel
+            datePickerInstance.toggle();
+            // Trigger Report Update Here
+             const startStr = datePickerInstance.startDate.toLocaleDateString('en-CA');
+             const endStr = datePickerInstance.startDate.toLocaleDateString('en-CA'); 
+             // ... logic ...
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        datePickerInstance = new DateRangePicker();
+    });
+
+    document.addEventListener('click', function(event) {
+        const popover = document.getElementById('DatePopover');
+        const trigger = document.getElementById('PrimaryFilter');
+        if (popover && popover.classList.contains('show')) {
+            if (!popover.contains(event.target) && !trigger.contains(event.target)) {
+                popover.classList.remove('show');
+            }
+        }
+    });
+
+    function toggleProcessedAtFilter() {
+        const pill = document.getElementById('ProcessedAtFilter');
+        if(pill) {
+             pill.classList.toggle('active-filter-pill'); 
+             // Visual toggle hack since we don't have a design for this popover yet
+             if(pill.style.background === 'rgb(241, 242, 243)') {
+                 pill.style.background = '';
+             } else {
+                 pill.style.background = '#f1f2f3';
+             }
         }
     }
 
