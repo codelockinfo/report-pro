@@ -161,7 +161,8 @@ $baseUrl = rtrim($appUrl, '/');
     
     .report-details-container {
         overflow: visible !important;
-        padding-bottom: 500px; /* Hack to ensure scroll space for popover */
+        padding: 0px 10px 500px 10px; /* Hack to ensure scroll space for popover */
+
     }
 
     /* Date Picker Safe Scroll */
@@ -381,29 +382,39 @@ $baseUrl = rtrim($appUrl, '/');
             <!-- More Actions Button -->
             <!-- More Actions Dropdown -->
             <div style="position: relative; display: inline-block;">
-                <button class="rp-btn rp-btn-secondary" onclick="toggleDropdown('moreActionsMenu')">
+                <button class="rp-btn rp-btn-secondary dropdown-trigger" onclick="toggleDropdown('moreActionsMenu')">
                     More actions
-                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                    <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px;"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                 </button>
                 <div id="moreActionsMenu" class="dropdown-content more-actions-menu">
                     <div class="more-action-item">
-                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/></svg></span>
+                        <span class="more-action-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </span>
                         Copy and edit
                     </div>
                     <div class="more-action-item">
-                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/></svg></span>
+                        <span class="more-action-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </span>
                         Add to dashboard
                     </div>
                     <div class="more-action-item">
-                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm-1 9v-1h5v2H5a1 1 0 01-1-1zm7 1h4a1 1 0 001-1v-1h-5v2zm0-4h5V8h-5v2zM9 8H4v2h5V8z" clip-rule="evenodd"/></svg></span>
+                        <span class="more-action-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                        </span>
                         Insert to Google Sheets
                     </div>
                     <div class="more-action-item">
-                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg></span>
+                        <span class="more-action-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        </span>
                         Refresh data
                     </div>
-                    <div class="more-action-item text-critical">
-                        <span class="more-action-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></span>
+                    <div class="more-action-item">
+                        <span class="more-action-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </span>
                         Move to trash
                     </div>
                 </div>
@@ -619,27 +630,7 @@ $baseUrl = rtrim($appUrl, '/');
                                 </div>
                             </div>
                         </div>
-                        <div class="relative">
-                            <div class="flex items-center gap-2 overflow-hidden">
-                                <span class="">
-                                    <div class="FilterPill__Filter--h7eN3" id="ProcessedAtFilter" onclick="toggleProcessedAtFilter()">
-                                        <div class="FilterPill__Content--js97k">
-                                            <strong class="Polaris-Text--root Polaris-Text--bodySm">Processed At</strong>
-                                            <span class="Polaris-Text--root Polaris-Text--bodySm Polaris-Text--subdued"> last 365 days</span>
-                                        </div>
-                                        <div style="display: flex;">
-                                            <button class="Polaris-Button Polaris-Button--pressable Polaris-Button--variantTertiary Polaris-Button--sizeMicro Polaris-Button--textAlignCenter Polaris-Button--iconOnly" type="button" aria-pressed="false" tabindex="0" aria-describedby=":r16:" data-polaris-tooltip-activator="true">
-                                                <span class="Polaris-Button__Icon">
-                                                    <span class="Polaris-Icon">
-                                                        <svg viewBox="0 0 20 20" class="Polaris-Icon__Svg" focusable="false" aria-hidden="true"><path fill-rule="evenodd" d="M6.24 8.2a.75.75 0 0 1 1.06.04l2.7 2.908 2.7-2.908a.75.75 0 1 1 1.1 1.02l-3.25 3.5a.75.75 0 0 1-1.1 0l-3.25-3.5a.75.75 0 0 1 .04-1.06Z"></path></svg>
-                                                    </span>
-                                                </span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </span>
-                            </div>
-                        </div>
+
                         <button id="Look:AddFilter" class="Polaris-Button Polaris-Button--pressable Polaris-Button--variantTertiary Polaris-Button--sizeSlim Polaris-Button--textAlignCenter Polaris-Button--iconOnly" type="button">
                             <span class="Polaris-Button__Icon">
                                 <span class="Polaris-Icon">
@@ -1309,33 +1300,41 @@ $baseUrl = rtrim($appUrl, '/');
     
     /* More Actions Dropdown */
     .more-actions-menu {
-        min-width: 220px;
-        border-radius: 8px;
-        padding: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        min-width: 250px;
+        border-radius: 12px;
+        padding: 8px 0;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         border: 1px solid #e1e3e5;
-        top: calc(100% + 4px);
-        right: 0; 
-        left: auto;
+        top: calc(100% + 8px);
+        left: 0;
+        right: auto;
     }
     .more-action-item {
         display: flex;
         align-items: center;
-        padding: 8px 12px;
+        padding: 10px 16px;
         font-size: 14px;
         color: #202223;
-        border-radius: 4px;
         cursor: pointer;
         transition: background-color 0.1s;
         gap: 12px;
+        font-weight: 500;
     }
     .more-action-item:hover {
         background-color: #f1f2f3;
     }
     .more-action-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         width: 20px;
         height: 20px;
         color: #5c5f62;
+    }
+    .more-action-icon svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
     }
     .more-action-item.text-critical {
         color: #d82c0d;
@@ -1878,18 +1877,7 @@ $baseUrl = rtrim($appUrl, '/');
         }
     });
 
-    function toggleProcessedAtFilter() {
-        const pill = document.getElementById('ProcessedAtFilter');
-        if(pill) {
-             pill.classList.toggle('active-filter-pill'); 
-             // Visual toggle hack since we don't have a design for this popover yet
-             if(pill.style.background === 'rgb(241, 242, 243)') {
-                 pill.style.background = '';
-             } else {
-                 pill.style.background = '#f1f2f3';
-             }
-        }
-    }
+
 
     // Filter Search Logic
     function filterFunction() {
