@@ -500,6 +500,20 @@ class ReportController extends Controller
             $this->json(['error' => 'Report not found'], 404);
         }
 
+        // AUTO-PATCH: Ensure customers dataset has updated_at column
+        $config = json_decode($report['query_config'], true) ?: [];
+        if (isset($config['dataset']) && $config['dataset'] === 'customers') {
+            $columns = $config['columns'] ?? [];
+            if (!in_array('updated_at', $columns)) {
+                error_log("ReportController::run - Auto-patching report {$id} to include updated_at");
+                $columns[] = 'updated_at';
+                $config['columns'] = $columns;
+                $reportModel->update($id, ['query_config' => json_encode($config)]);
+                // Reload report to get fresh config for execution
+                $report = $reportModel->find($id); 
+            }
+        }
+
         try {
             error_log("ReportController::run - Creating ShopifyService");
             $shopifyService = new \App\Services\ShopifyService(
@@ -514,21 +528,38 @@ class ReportController extends Controller
             $operationId = $reportBuilder->executeReport($id);
             error_log("ReportController::run - Report executed, Operation ID: {$operationId}");
 
-            // Immediate processing for local dev (since no webhooks)
-            if (getenv('APP_ENV') === 'local') {
-                error_log("ReportController::run - Local environment detected, processing result immediately");
-                $reportBuilder->processBulkOperationResult($operationId, $id);
-                error_log("ReportController::run - Result processed");
+            // Poll for completion (max 20 seconds) to avoid PHP timeouts
+            $status = 'PENDING';
+            for ($i = 0; $i < 20; $i++) {
+                sleep(1); // Wait 1s
+                try {
+                    $isComplete = $reportBuilder->processBulkOperationResult($operationId, $id);
+                    if ($isComplete) {
+                        error_log("ReportController::run - Operation completed and processed within timeout.");
+                        $status = 'COMPLETED';
+                        break;
+                    }
+                } catch (\Throwable $e) {
+                    error_log("ReportController::run - Polling error: " . $e->getMessage());
+                    // Continue polling? Or break? If checking status failed, maybe just break.
+                    break;
+                }
             }
+
 
             $this->json([
                 'success' => true,
                 'operation_id' => $operationId,
+                'status' => $status,
                 'message' => 'Report generation started'
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("ReportController::run - EXCEPTION: " . $e->getMessage());
             error_log("ReportController::run - TRACE: " . $e->getTraceAsString());
+            
+            // Clean output buffer if started
+            if (ob_get_level()) ob_end_clean();
+            
             $this->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -738,7 +769,7 @@ class ReportController extends Controller
                 'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'customers',
-                    'columns' => ['id', 'full_name', 'email', 'created_at', 'orders_count', 'total_spent', 'country', 'accepts_marketing']
+                    'columns' => ['id', 'full_name', 'email', 'created_at', 'updated_at', 'orders_count', 'total_spent', 'country', 'accepts_marketing']
                 ]
             ];
         }

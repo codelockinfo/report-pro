@@ -7,7 +7,7 @@ embedded = true
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_orders,read_products,read_customers,read_inventory,read_transactions,read_analytics"
+scopes = "read_orders,read_all_orders,read_products,read_customers,read_inventory,read_transactions,read_analytics,read_draft_orders,read_marketing_events,read_price_rules,read_discounts,read_shopify_payments_payouts,read_files"
 
 [auth]
 redirect_urls = [

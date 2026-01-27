@@ -350,9 +350,14 @@ $baseUrl = rtrim($appUrl, '/');
         
         <div class="header-actions">
             <!-- AI Button -->
-            <button class="rp-btn rp-btn-secondary">
+            <!-- <button class="rp-btn rp-btn-secondary">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clip-rule="evenodd"/></svg>
                 AI
+            </button> -->
+            
+            <button class="rp-btn rp-btn-primary" onclick="runReport()" style="margin-right: 8px;">
+                <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px; margin-right: 6px;"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+                Sync Data
             </button>
             
             <!-- Export Button -->
@@ -371,12 +376,6 @@ $baseUrl = rtrim($appUrl, '/');
             <button class="rp-btn rp-btn-secondary">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
                 Print
-            </button>
-            
-            <!-- Open in new tab Button -->
-            <button class="rp-btn rp-btn-secondary">
-                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg>
-                Open in new tab
             </button>
             
             <!-- More Actions Button -->
@@ -464,7 +463,7 @@ $baseUrl = rtrim($appUrl, '/');
                                             <!-- Date Picker Dropdown -->
                                             <div class="dateRangePicker__Wrapper--lMP7K" id="DatePopover">
                                                 <div>
-                                                    <div class="calendar__CalendarWrapper--QY1r9 null">
+                                                    <div class="calendar__CalendarWrapper--QY1r9">
                                                         <div class="calendar__MonthAndYearWrapper--2C9qJ" style="justify-content: space-between; margin-bottom: 20px;">
                                                             <button id="btn-prev-month" class="Polaris-Button Polaris-Button--pressable Polaris-Button--variantTertiary Polaris-Button--sizeMedium Polaris-Button--textAlignCenter Polaris-Button--iconOnly" type="button">
                                                                 <span class="Polaris-Button__Icon"><span class="Polaris-Icon"><svg viewBox="0 0 20 20" class="Polaris-Icon__Svg"><path fill-rule="evenodd" d="M11.72 14.53a.75.75 0 0 1 0-1.06L9.06 10l2.66-3.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1 0 1.06l-4 4a.75.75 0 0 1-1.06-1.06l2.66-3.47 4 4a.75.75 0 0 1 .53.22Z" opacity="0"></path><path fill-rule="evenodd" d="M12.78 14.53a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 0-1.06l4-4a.75.75 0 1 1 1.06 1.06L9.31 10l3.47 3.47a.75.75 0 0 1 0 1.06Z"></path></svg></span></span>
@@ -710,24 +709,17 @@ $baseUrl = rtrim($appUrl, '/');
 
         <!-- Data Table -->
         <div class="table-wrapper">
-            <?php if ($result): ?>
-                <table class="data-table">
-                    <thead>
-                        <tr id="table-headers">
-                            <!-- Loaded dynamically -->
-                        </tr>
-                    </thead>
-                    <tbody id="table-body">
+            <table class="data-table">
+                <thead>
+                    <tr id="table-headers">
                         <!-- Loaded dynamically -->
-                    </tbody>
-                </table>
-                <div class="footer-count" id="record-count"></div>
-            <?php else: ?>
-                <div class="empty-state">
-                    <p>No data available. Run the report to generate data.</p>
-                    <button onclick="runReport()" class="rp-btn rp-btn-primary">Run Report</button>
-                </div>
-            <?php endif; ?>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr><td colspan="100%" style="text-align:center; padding: 20px; color: #6d7175;">Loading data...</td></tr>
+                </tbody>
+            </table>
+            <div class="footer-count" id="record-count"></div>
         </div>
     </div>
 </div>
@@ -745,7 +737,7 @@ $baseUrl = rtrim($appUrl, '/');
         display: none;
         position: absolute;
         background-color: white;
-        min-width: 240px;
+        min-width: 205px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         border: 1px solid #dfe3e8;
         border-radius: 6px;
@@ -1300,7 +1292,7 @@ $baseUrl = rtrim($appUrl, '/');
     
     /* More Actions Dropdown */
     .more-actions-menu {
-        min-width: 250px;
+        width: fit-content;
         border-radius: 12px;
         padding: 8px 0;
         box-shadow: 0 4px 20px rgba(0,0,0,0.1);
@@ -1313,7 +1305,7 @@ $baseUrl = rtrim($appUrl, '/');
         display: flex;
         align-items: center;
         padding: 10px 16px;
-        font-size: 14px;
+        font-size: 13px;
         color: #202223;
         cursor: pointer;
         transition: background-color 0.1s;
@@ -1854,12 +1846,13 @@ $baseUrl = rtrim($appUrl, '/');
     
     function applyDateRange() {
         if (datePickerInstance) {
-            datePickerInstance.updateMainButton(); // This will now use this.currentLabel
+            datePickerInstance.updateMainButton(); 
             datePickerInstance.toggle();
-            // Trigger Report Update Here
-             const startStr = datePickerInstance.startDate.toLocaleDateString('en-CA');
-             const endStr = datePickerInstance.startDate.toLocaleDateString('en-CA'); 
-             // ... logic ...
+            
+            const startStr = datePickerInstance.startDate ? datePickerInstance.startDate.toISOString().split('T')[0] : '';
+            const endStr = datePickerInstance.endDate ? datePickerInstance.endDate.toISOString().split('T')[0] : ''; // Use endDate correctly
+            
+            fetchReportData(startStr, endStr);
         }
     }
 
@@ -1896,22 +1889,130 @@ $baseUrl = rtrim($appUrl, '/');
         }
     }
     
+    // Auto-run state
+    let hasAttemptedAutoRun = false;
+
     // Core Report Functions
-    function runReport() {
-        shopFetch(`${baseUrl}/reports/${reportId}/run`, { method: 'POST' })
+    // Enhanced Run Report Logic
+    function runReport(isAuto = false) {
+        if(!isAuto) {
+            const btn = document.querySelector('.rp-btn-primary[onclick="runReport()"]');
+            if(btn) {
+                 if(!btn.dataset.original) btn.dataset.original = btn.innerHTML;
+                 // Spinner
+                 btn.innerHTML = `<svg class="animate-spin" viewBox="0 0 24 24" style="width:16px;height:16px;animation:spin 1s linear infinite;fill:none;stroke:currentColor;stroke-width:2;margin-right:6px;"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="1"></path></svg> Syncing...`;
+                 btn.disabled = true;
+                 
+                 if(!document.getElementById('spin-style')) {
+                    const style = document.createElement('style');
+                    style.id = 'spin-style';
+                    style.innerHTML = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+                    document.head.appendChild(style);
+                 }
+            }
+        }
+        
+        let bodyFn = {};
+        if (datePickerInstance && datePickerInstance.startDate && datePickerInstance.endDate) {
+             bodyFn.start_date = datePickerInstance.startDate.toISOString().split('T')[0];
+             bodyFn.end_date = datePickerInstance.endDate.toISOString().split('T')[0];
+        }
+
+        shopFetch(`${baseUrl}/reports/${reportId}/run`, { 
+            method: 'POST',
+            body: JSON.stringify(bodyFn),
+            headers: {'Content-Type': 'application/json'}
+        })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('Report generation started. Please wait...');
-                setTimeout(() => window.location.reload(), 3000);
+                // If COMPLETED, fetch immediately.
+                if (data.status === 'COMPLETED') {
+                     refreshTableAfterSync(isAuto);
+                } else if (data.status === 'PENDING' && data.operation_id) {
+                     // Start polling from client side
+                     pollReportStatus(data.operation_id, isAuto);
+                } else {
+                     // Fallback for unknown status
+                     setTimeout(() => refreshTableAfterSync(isAuto), 3000);
+                }
             } else {
-                alert('Error: ' + (data.error || 'Failed to run report'));
+                if(!isAuto) {
+                    alert('Error: ' + (data.error || 'Failed to run report'));
+                    resetSyncButton();
+                }
+                console.error("Run Report Failed", data);
+                const tbody = document.getElementById('table-body');
+                if(tbody) tbody.innerHTML = `<tr><td colspan="100%" style="text-align:center; padding: 20px; color: #d82c0d;">Sync failed: ${data.error}</td></tr>`;
             }
         })
         .catch(err => {
             console.error('Run Report Error:', err);
-            alert('Failed to run report. Check console for details.');
+            if(!isAuto) {
+                alert('Failed to run report. Check console for details.');
+                resetSyncButton();
+            }
         });
+    }
+
+    function pollReportStatus(operationId, isAuto) {
+        const pollInterval = 2000; // 2 seconds
+        const maxAttempts = 30; // 60 seconds max extra wait
+        let attempts = 0;
+
+        const poller = setInterval(() => {
+            attempts++;
+            // Use query param to avoid slash issues in URL path
+            shopFetch(`${baseUrl}/api/bulk-operation/status?id=${encodeURIComponent(operationId)}`)
+                .then(res => res.json())
+                .then(resData => {
+                    const status = resData.status || (resData.data ? resData.data.status : null);
+                    // console.log("Polling status:", status);
+                    
+                    if (status === 'COMPLETED') {
+                        clearInterval(poller);
+                        refreshTableAfterSync(isAuto);
+                    } else if (status === 'FAILED' || status === 'CANCELED' || status === 'EXPIRED') {
+                        clearInterval(poller);
+                        if(!isAuto) {
+                            let msg = 'Report generation failed with status: ' + status;
+                            if(resData.error_code) msg += ' (' + resData.error_code + ')';
+                            alert(msg);
+                            resetSyncButton();
+                        }
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(poller);
+                        if(!isAuto) {
+                            alert('Report generation timed out. Please try refreshing manually.');
+                            resetSyncButton();
+                        }
+                    }
+                })
+                .catch(e => {
+                    console.error("Polling error", e);
+                    // Don't stop polling on single network error, but if many?
+                    if(attempts % 5 === 0) console.log("Still polling...", attempts);
+                });
+        }, pollInterval);
+    }
+
+    function refreshTableAfterSync(isAuto) {
+        if (datePickerInstance) {
+            const startStr = datePickerInstance.startDate ? datePickerInstance.startDate.toISOString().split('T')[0] : '';
+            const endStr = datePickerInstance.endDate ? datePickerInstance.endDate.toISOString().split('T')[0] : '';
+            fetchReportData(startStr, endStr, true); // Silent refresh
+        } else {
+            fetchReportData(null, null, true);
+        }
+        if(!isAuto) resetSyncButton();
+    }
+
+    function resetSyncButton() {
+        const btn = document.querySelector('.rp-btn-primary[onclick="runReport()"]');
+        if(btn && btn.dataset.original) {
+            btn.innerHTML = btn.dataset.original;
+            btn.disabled = false;
+        }
     }
 
     function exportReport(format) {
@@ -1932,34 +2033,130 @@ $baseUrl = rtrim($appUrl, '/');
         });
     }
 
-    // Load report data
-    shopFetch(`${baseUrl}/reports/${reportId}/data`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.data && data.data.length > 0) {
-                // Handle chart visualization
-                if (visualType === 'chart') {
-                    document.getElementById('chart-wrap').style.display = 'block';
-                    renderChart(data.data);
+    // Load report data function
+    function fetchReportData(startDate = null, endDate = null, silent = false) {
+        const tbody = document.getElementById('table-body');
+        
+        // Only show loading if NOT silent
+        if(!silent && tbody) tbody.innerHTML = '<tr><td colspan="100%" style="text-align:center; padding: 20px; color: #6d7175;">Loading data...</td></tr>';
+
+        let url = `${baseUrl}/reports/${reportId}/data`;
+        const params = new URLSearchParams();
+        if(startDate) params.append('start_date', startDate);
+        if(endDate) params.append('end_date', endDate);
+        
+        // Add shop/host params
+        params.append('shop', reportShopDomain);
+        if(reportHost) params.append('host', reportHost);
+        
+        // Cache buster
+        params.append('_t', new Date().getTime());
+
+        fetch(`${url}?${params.toString()}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.data && data.data.length > 0) {
+                    let rows = data.data;
+
+                    // Debug logging
+                    // console.log("Raw rows:", rows.length, rows[0]);
+
+                    const originalCount = rows.length;
+                    
+                    // Client-side Date Filtering
+                    if (startDate && endDate) {
+                        const start = new Date(startDate);
+                        start.setHours(0,0,0,0);
+                        const end = new Date(endDate);
+                        end.setHours(23,59,59,999);
+
+                        // console.log("Filtering between:", start, end);
+
+                        rows = rows.filter(row => {
+                            // Detect date field
+                            let dateVal = null;
+                            
+                            // Prioritize robust dates
+                            if(row.date) dateVal = row.date;
+                            else if(row.processedAt) dateVal = row.processedAt;
+                            else if(row.processed_at) dateVal = row.processed_at;
+                            else if(row.updatedAt) dateVal = row.updatedAt;
+                            else if(row.updated_at) dateVal = row.updated_at;
+                            else if(row.createdAt || row.created_at) {
+                                dateVal = row.createdAt || row.created_at;
+                            }
+
+                            if (!dateVal) return true; // Keep if no relevant date found
+
+                            const d = new Date(dateVal);
+                            const inRange = d >= start && d <= end;
+                            // if(!inRange) console.log("Excluded:", dateVal, row);
+                            return inRange;
+                        });
+                    }
+
+                    if (rows.length > 0) {
+                        renderTableData(rows);
+                        hasAttemptedAutoRun = true; 
+                    } else {
+                         // Data exists but hidden by filter?
+                        if (originalCount > 0) {
+                             if(tbody) tbody.innerHTML = `<tr><td colspan="100%" style="text-align:center; padding: 20px; color: #6d7175;">
+                                No data matching this date range.<br/>
+                                <span style="font-size:12px; color:#8c9196;">(${originalCount} records hidden by filter)</span>
+                             </td></tr>`;
+                             document.getElementById('record-count').innerText = `0 records (${originalCount} hidden)`;
+                        } else {
+                            handleNoData(tbody);
+                        }
+                    }
+                } else {
+                    handleNoData(tbody);
                 }
-                
-                const configColumns = reportColumns; // From PHP
-                
-                // Column definitions with formatters
-                // Column definitions with formatters
-                const columnDefs = {
+            })
+            .catch(err => {
+                console.error("Fetch Error details:", err);
+                if(tbody) tbody.innerHTML = `<tr><td colspan="100%" style="text-align:center; padding: 20px; color: #d82c0d;">Error: ${err.message}</td></tr>`;
+            });
+    }
+
+    function handleNoData(tbody) {
+        if (!hasAttemptedAutoRun) {
+            // Auto-trigger Sync
+            if(tbody) tbody.innerHTML = '<tr><td colspan="100%" style="text-align:center; padding: 20px; color: #6d7175;">Syncing latest data from Shopify...</td></tr>';
+            hasAttemptedAutoRun = true;
+            runReport(true);
+        } else {
+            // Truly empty after sync
+            if(tbody) tbody.innerHTML = '<tr><td colspan="100%" style="text-align:center; padding: 20px; color: #6d7175;">No data found for this period.</td></tr>';
+            document.getElementById('record-count').innerText = '0 records';
+            const chartWrap = document.getElementById('chart-wrap');
+            if(chartWrap) chartWrap.style.display = 'none'; 
+        }
+    }
+
+    function renderTableData(rows) {
+        // Handle chart visualization
+        if (visualType === 'chart') {
+            document.getElementById('chart-wrap').style.display = 'block';
+            renderChart(rows);
+        }
+        
+        const configColumns = reportColumns; 
+        
+        // Column definitions with formatters
+        const columnDefs = {
                     'id': { label: 'Id', formatter: val => formatId(val) },
                     'created_at': { label: 'DAY Created at', key: 'createdAt', formatter: val => formatDate(val) },
+                    'updated_at': { label: 'Last Updated', key: 'updatedAt', formatter: val => formatDate(val) },
                     'email': { label: 'Email' },
-                    'accepts_marketing': { label: 'Accepts email marketing', key: 'acceptsMarketing', formatter: val => val ? 'Yes' : 'No' },
+                    'accepts_marketing': { 
+                        label: 'Accepts email marketing', 
+                        key: 'emailMarketingConsent', 
+                        formatter: val => (val && val.marketingState === 'SUBSCRIBED') ? 'Yes' : 'No' 
+                    },
                     'full_name': { label: 'Full name', key: 'displayName' },
-                    'country': { label: 'Country', key: 'defaultAddress', formatter: val => val?.country || (typeof val === 'string' ? val : '') }, // defaultAddress or shippingAddress??
-                    // Wait, shippingAddress format is similar. row.shippingAddress.country.
-                    // But key 'defaultAddress' won't work for Orders?
-                    // Orders use `shippingAddress`.
-                    // We need a smart key selector or formatter that checks both.
-                    // Let's use a formatter that looks at row.
-                    
+                    'country': { label: 'Country', key: 'defaultAddress', formatter: val => val?.country || (typeof val === 'string' ? val : '') },
                     'orders_count': { label: '# Orders', key: 'ordersCount' },
                     'total_spent': { label: 'Total spent', key: 'totalSpent', formatter: val => formatMoney(val) },
                     'average_order_value': { label: 'Average order value', formatter: (val, row) => calculateAOV(row) },
@@ -2011,54 +2208,68 @@ $baseUrl = rtrim($appUrl, '/');
                     // Browser Share specific
                     'browser': { label: 'Browser' },
                     'sessions_count': { label: 'Sessions', formatter: val => val ? val.toLocaleString() : '0' }
-                };
+        };
 
-                // Map PHP config columns to keys in data and display labels
-                const activeColumns = configColumns.map(col => {
-                    const def = columnDefs[col] || {};
-                    return {
-                        id: col,
-                        key: def.key || col, 
-                        label: def.label || formatColumnName(col),
-                        formatter: def.formatter || (v => v)
-                    };
-                });
-
-                // Header with dropdown arrows
-                const headerRow = document.getElementById('table-headers');
-                headerRow.innerHTML = activeColumns.map(col => `
-                    <th>
-                        <div class="column-header">
-                            ${col.label}
-                            <svg viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                            </svg>
-                        </div>
-                    </th>
-                `).join('');
-                
-                // Body
-                const tbody = document.getElementById('table-body');
-                tbody.innerHTML = data.data.map(row => {
-                    return '<tr>' + activeColumns.map(col => {
-                        let val;
-                        // Manual fallbacks for mixed keys (orders vs customers)
-                        if (col.id === 'country') {
-                             val = row.defaultAddress || row.shippingAddress;
-                        } else if (col.id === 'created_at') {
-                             val = row.createdAt || row.created_at;
-                        } else if (col.id === 'updated_at') {
-                             val = row.updatedAt || row.updated_at;
-                        } else {
-                             val = row[col.key];
-                        }
-                        return `<td>${col.formatter(val ?? (col.id.includes('total') ? 0 : '-'), row)}</td>`;
-                    }).join('') + '</tr>';
-                }).join('');
-                
-                document.getElementById('record-count').innerText = `${data.data.length} records`;
-            }
+        // Map PHP config columns to keys in data and display labels
+        const activeColumns = configColumns.map(col => {
+            const def = columnDefs[col] || {};
+            return {
+                id: col,
+                key: def.key || col, 
+                label: def.label || formatColumnName(col),
+                formatter: def.formatter || (v => v)
+            };
         });
+
+        // Header
+        const headerRow = document.getElementById('table-headers');
+        headerRow.innerHTML = activeColumns.map(col => `
+            <th>
+                <div class="column-header">
+                    ${col.label}
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+            </th>
+        `).join('');
+        
+        // Body
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = rows.map(row => {
+            return '<tr>' + activeColumns.map(col => {
+                let val;
+                if (col.id === 'country') {
+                        val = row.defaultAddress || row.shippingAddress;
+                } else if (col.id === 'created_at') {
+                        val = row.createdAt || row.created_at;
+                } else if (col.id === 'updated_at') {
+                        val = row.updatedAt || row.updated_at;
+                } else {
+                        val = row[col.id] !== undefined ? row[col.id] : row[col.key];
+                }
+                return `<td>${col.formatter(val ?? (col.id.includes('total') ? 0 : '-'), row)}</td>`;
+            }).join('') + '</tr>';
+        }).join('');
+        
+        document.getElementById('record-count').innerText = `${rows.length} records`;
+    }
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', () => {
+         // 1. Load local data immediately (Stale-While-Revalidate)
+         if (datePickerInstance) {
+            const startStr = datePickerInstance.startDate ? datePickerInstance.startDate.toISOString().split('T')[0] : '';
+            const endStr = datePickerInstance.endDate ? datePickerInstance.endDate.toISOString().split('T')[0] : '';
+            fetchReportData(startStr, endStr);
+         } else {
+             fetchReportData(); 
+         }
+         
+         // 2. Trigger Auto-Sync in background to get fresh data
+         // Check if we haven't synced recently? For now, always sync on load for "Realtime" feel.
+         runReport(true); 
+    });
         
     function formatColumnName(name) {
         return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());

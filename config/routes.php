@@ -51,7 +51,8 @@ $router->post('/settings/update', 'SettingsController@update');
 // API routes
 $router->post('/api/graphql', 'ApiController@graphql');
 $router->post('/api/bulk-operation', 'ApiController@bulkOperation');
-$router->get('/api/bulk-operation/{id}/status', 'ApiController@bulkOperationStatus');
+$router->get('/api/bulk-operation/status', 'ApiController@bulkOperationStatus'); // Query param based
+$router->get('/api/bulk-operation/{id}/status', 'ApiController@bulkOperationStatus'); // Path param based
 
 // Webhook routes
 $router->post('/webhooks/app/uninstalled', 'WebhookController@appUninstalled');

@@ -74,8 +74,17 @@ class ApiController extends Controller
         ]);
     }
 
-    public function bulkOperationStatus($id)
+    public function bulkOperationStatus($id = null)
     {
+        // Handle ID from query param if not passed in path (or if path routing failed due to slashes)
+        if (!$id && isset($_GET['id'])) {
+            $id = $_GET['id'];
+        }
+
+        if (!$id) {
+             $this->json(['error' => 'Operation ID is required'], 400);
+        }
+
         $shop = $this->requireAuth();
         
         $bulkOpModel = new \App\Models\BulkOperation();
@@ -99,7 +108,8 @@ class ApiController extends Controller
             $this->json([
                 'status' => $node['status'],
                 'completed_at' => $node['completedAt'] ?? null,
-                'url' => $node['url'] ?? null
+                'url' => $node['url'] ?? null,
+                'error_code' => $node['errorCode'] ?? null
             ]);
         } else {
             $this->json(['error' => 'Failed to get status'], 500);

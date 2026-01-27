@@ -26,7 +26,7 @@ class ShopifyService
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
             'query' => $query,
-            'variables' => $variables
+            'variables' => empty($variables) ? new \stdClass() : $variables
         ]));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
@@ -38,15 +38,17 @@ class ShopifyService
         curl_close($ch);
 
         if ($httpCode !== 200) {
-            error_log("Shopify API Error: HTTP {$httpCode} - {$response}");
-            return null;
+            $errorMsg = "Shopify API HTTP Error: {$httpCode} - {$response}";
+            error_log($errorMsg);
+            throw new \Exception($errorMsg);
         }
 
         $data = json_decode($response, true);
         
         if (isset($data['errors'])) {
-            error_log("Shopify GraphQL Errors: " . json_encode($data['errors']));
-            return null;
+            $errorMsg = "Shopify GraphQL Error: " . json_encode($data['errors']);
+            error_log($errorMsg);
+            throw new \Exception($errorMsg);
         }
 
         return $data['data'] ?? null;
@@ -54,8 +56,8 @@ class ShopifyService
 
     public function createBulkOperation($query)
     {
-        // Mock for Local Dev
-        if (getenv('APP_ENV') === 'local') {
+        // Mock for Local Dev - DISABLED to fetch real data
+        if (false && getenv('APP_ENV') === 'local') {
             $type = 'orders';
             if (strpos($query, 'products') !== false) $type = 'products';
             if (strpos($query, 'customers') !== false) $type = 'customers';
@@ -81,31 +83,33 @@ class ShopifyService
             ];
         }
 
+        $encodedQuery = json_encode($query);
+
         $mutation = <<<GRAPHQL
-            mutation {
-                bulkOperationRunQuery(
-                    query: "{$query}"
-                ) {
-                    bulkOperation {
-                        id
-                        status
-                        query
-                    }
-                    userErrors {
-                        field
-                        message
-                    }
-                }
-            }
-        GRAPHQL;
+mutation {
+  bulkOperationRunQuery(
+    query: {$encodedQuery}
+  ) {
+    bulkOperation {
+      id
+      status
+      query
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+GRAPHQL;
 
         return $this->graphql($mutation);
     }
 
     public function getBulkOperationStatus($operationId)
     {
-        // Mock for Local Dev
-        if (getenv('APP_ENV') === 'local') {
+        // Mock for Local Dev - DISABLED
+        if (false && getenv('APP_ENV') === 'local') {
             $type = 'orders';
             if (strpos($operationId, 'MOCK_products') !== false) $type = 'products';
             if (strpos($operationId, 'MOCK_customers') !== false) $type = 'customers';
@@ -157,8 +161,8 @@ class ShopifyService
 
     public function downloadBulkOperationFile($url)
     {
-        // Mock for Local Dev
-        if (getenv('APP_ENV') === 'local' && strpos($url, 'mock://') === 0) {
+        // Mock for Local Dev - DISABLED
+        if (false && getenv('APP_ENV') === 'local' && strpos($url, 'mock://') === 0) {
             error_log("ShopifyService::downloadBulkOperationFile - Mocking: {$url}");
             $data = [];
             

@@ -84,6 +84,9 @@ class ReportBuilderService
                 case 'country':
                     $fields[] = 'shippingAddress { country }';
                     break;
+                case 'updated_at':
+                    $fields[] = 'updatedAt';
+                    break;
             }
         }
         
@@ -121,6 +124,9 @@ class ReportBuilderService
                 case 'created_at':
                     $fields[] = 'createdAt';
                     break;
+                case 'updated_at':
+                    $fields[] = 'updatedAt';
+                    break;
             }
         }
         
@@ -150,10 +156,10 @@ class ReportBuilderService
                     $fields[] = 'email';
                     break;
                 case 'orders_count':
-                    $fields[] = 'ordersCount';
+                    $fields[] = 'ordersCount: numberOfOrders';
                     break;
                 case 'total_spent':
-                    $fields[] = 'totalSpent { amount currencyCode }';
+                    $fields[] = 'totalSpent: amountSpent { amount currencyCode }';
                     break;
                 case 'country':
                     $fields[] = 'defaultAddress { country }';
@@ -161,11 +167,14 @@ class ReportBuilderService
                 case 'created_at':
                     $fields[] = 'createdAt';
                     break;
+                case 'updated_at':
+                    $fields[] = 'updatedAt';
+                    break;
                 case 'full_name':
                     $fields[] = 'displayName';
                     break;
                 case 'accepts_marketing':
-                    $fields[] = 'acceptsMarketing';
+                    $fields[] = 'emailMarketingConsent { marketingState }';
                     break;
                 case 'average_order_value':
                     // Note: This might need calculation if not available directly, but using available field if exists or totalSpent for now as placeholder if direct field unavailable in API version. 
@@ -175,13 +184,13 @@ class ReportBuilderService
                     // But if we MUST query a field, let's try 'averageOrderAmount' if valid, or just comment it out and rely on client side calculation? 
                     // Better yet, let's assume 'totalSpent' is what they want if AOV is complex, OR just fetch it.
                     // Let's add 'state' just in case.
-                    $fields[] = 'state'; 
+                    // $fields[] = 'state'; 
                     break;
             }
         }
         
         $query .= implode(' ', $fields);
-        $query .= " } } } } }";
+        $query .= " } } } }";
         
         return $query;
     }
@@ -317,7 +326,15 @@ class ReportBuilderService
         $result = $this->shopifyService->createBulkOperation($query);
         
         if (!$result || !isset($result['bulkOperationRunQuery']['bulkOperation'])) {
-            throw new \Exception("Failed to create bulk operation from Shopify");
+            $errorMsg = "Failed to create bulk operation from Shopify";
+            if (isset($result['bulkOperationRunQuery']['userErrors'])) {
+                $errors = [];
+                foreach ($result['bulkOperationRunQuery']['userErrors'] as $err) {
+                    $errors[] = $err['message'] . " (Field: " . json_encode($err['field']) . ")";
+                }
+                if (!empty($errors)) $errorMsg .= ": " . implode(", ", $errors);
+            }
+            throw new \Exception($errorMsg);
         }
 
         $operation = $result['bulkOperationRunQuery']['bulkOperation'];
@@ -430,18 +447,17 @@ class ReportBuilderService
 
     private function buildSalesSummaryQuery($filters, $columns, $groupBy, $aggregations)
     {
-        // Unique identifier for mock detection: #DATASET:SALES_SUMMARY
-        return "#DATASET:SALES_SUMMARY\nquery { orders(first: 250) { edges { node { id totalPriceSet { shopMoney { amount } } } } } }";
+        return "query { orders(first: 250) { edges { node { id totalPriceSet { shopMoney { amount } } } } } }";
     }
 
     private function buildAovTimeQuery($filters, $columns, $groupBy, $aggregations)
     {
-        return "#DATASET:AOV_TIME\nquery { orders(first: 250) { edges { node { id createdAt totalPriceSet { shopMoney { amount } } } } } }";
+        return "query { orders(first: 250) { edges { node { id createdAt totalPriceSet { shopMoney { amount } } } } } }";
     }
 
     private function buildBrowserShareQuery($filters, $columns, $groupBy, $aggregations)
     {
-        return "#DATASET:BROWSER_SHARE\nquery { orders(first: 250) { edges { node { id customerJourneySummary { lastVisit { source browser } } } } } }";
+        return "query { orders(first: 250) { edges { node { id customerJourneySummary { lastVisit { source browser } } } } } }";
     }
 }
 
