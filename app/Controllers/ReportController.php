@@ -660,7 +660,7 @@ class ReportController extends Controller
                 'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'orders',
-                    'columns' => ['id', 'name', 'created_at', 'total_price', 'financial_status', 'fulfillment_status', 'country']
+                    'columns' => ['id', 'name', 'created_at', 'total_price', 'financial_status', 'fulfillment_status']
                 ]
             ];
         }
@@ -769,7 +769,7 @@ class ReportController extends Controller
                 'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'customers',
-                    'columns' => ['id', 'full_name', 'email', 'created_at', 'updated_at', 'orders_count', 'total_spent', 'country', 'accepts_marketing']
+                    'columns' => ['id', 'created_at', 'updated_at', 'orders_count', 'total_spent', 'accepts_marketing']
                 ]
             ];
         }
