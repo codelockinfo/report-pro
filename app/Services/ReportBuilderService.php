@@ -67,7 +67,7 @@ class ReportBuilderService
                     $fields[] = 'name';
                     break;
                 case 'email':
-                    $fields[] = 'email';
+                    // DISABLED PII: $fields[] = 'email';
                     break;
                 case 'created_at':
                     $fields[] = 'createdAt';
@@ -82,7 +82,7 @@ class ReportBuilderService
                     $fields[] = 'fulfillmentStatus';
                     break;
                 case 'country':
-                    $fields[] = 'shippingAddress { country }';
+                    // DISABLED PII: $fields[] = 'shippingAddress { country }';
                     break;
                 case 'updated_at':
                     $fields[] = 'updatedAt';
@@ -147,13 +147,13 @@ class ReportBuilderService
                     $fields[] = 'id';
                     break;
                 case 'first_name':
-                    $fields[] = 'firstName';
+                    // DISABLED PII: $fields[] = 'firstName';
                     break;
                 case 'last_name':
-                    $fields[] = 'lastName';
+                    // DISABLED PII: $fields[] = 'lastName';
                     break;
                 case 'email':
-                    $fields[] = 'email';
+                    // DISABLED PII: $fields[] = 'email';
                     break;
                 case 'orders_count':
                     $fields[] = 'ordersCount: numberOfOrders';
@@ -162,7 +162,7 @@ class ReportBuilderService
                     $fields[] = 'totalSpent: amountSpent { amount currencyCode }';
                     break;
                 case 'country':
-                    $fields[] = 'defaultAddress { country }';
+                    // DISABLED PII: $fields[] = 'defaultAddress { country }';
                     break;
                 case 'created_at':
                     $fields[] = 'createdAt';
@@ -171,7 +171,7 @@ class ReportBuilderService
                     $fields[] = 'updatedAt';
                     break;
                 case 'full_name':
-                    $fields[] = 'displayName';
+                    // DISABLED PII: $fields[] = 'displayName';
                     break;
                 case 'accepts_marketing':
                     $fields[] = 'emailMarketingConsent { marketingState }';
