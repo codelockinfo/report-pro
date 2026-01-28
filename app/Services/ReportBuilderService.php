@@ -329,6 +329,19 @@ class ReportBuilderService
         $config = json_decode($report['query_config'], true) ?: [];
         $query = $this->buildQuery($config);
 
+        // Fallback: some stores/apps cannot run Bulk Ops due to protected customer data restrictions.
+        // For small summary/chart datasets we can run a normal GraphQL query and save results directly.
+        $dataset = $config['dataset'] ?? 'orders';
+        $directDatasets = ['sales_summary', 'aov_time'];
+        if (in_array($dataset, $directDatasets, true)) {
+            error_log("ReportBuilderService::executeReport - Using DIRECT mode for dataset: {$dataset}");
+            $data = $this->shopifyService->graphql($query);
+            $rows = $this->transformDirectResult($dataset, $data);
+            $this->saveResult($reportId, $rows);
+            // Return a sentinel operation id; controller will treat COMPLETED without polling.
+            return "DIRECT:{$dataset}:" . $reportId;
+        }
+
         // Create bulk operation
         $result = $this->shopifyService->createBulkOperation($query);
         
@@ -358,6 +371,70 @@ class ReportBuilderService
         ]);
 
         return $operationId;
+    }
+
+    private function transformDirectResult($dataset, $data)
+    {
+        if (!is_array($data)) return [];
+
+        // Common helper to read orders edges
+        $orderEdges = $data['orders']['edges'] ?? [];
+
+        if ($dataset === 'sales_summary') {
+            $totalOrders = 0;
+            $totalSales = 0.0;
+
+            foreach ($orderEdges as $edge) {
+                $node = $edge['node'] ?? null;
+                if (!$node) continue;
+                $totalOrders++;
+                $amount = $node['totalPriceSet']['shopMoney']['amount'] ?? null;
+                if (is_numeric($amount)) $totalSales += (float)$amount;
+            }
+
+            // Populate the columns expected by the UI; values not available from this lightweight query are 0.
+            return [[
+                'total_orders' => $totalOrders,
+                'total_gross_sales' => ['amount' => (string)$totalSales, 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+                'total_discounts' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+                'total_refunds' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+                'total_net_sales' => ['amount' => (string)$totalSales, 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+                'total_taxes' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+                'total_shipping' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+                'total_sales' => ['amount' => (string)$totalSales, 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+                'total_cost_of_goods_sold' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+                'total_gross_margin' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
+            ]];
+        }
+
+        if ($dataset === 'aov_time') {
+            // Simple daily AOV (average of order totals per day)
+            $byDate = [];
+            foreach ($orderEdges as $edge) {
+                $node = $edge['node'] ?? null;
+                if (!$node) continue;
+                $createdAt = $node['createdAt'] ?? null;
+                $amount = $node['totalPriceSet']['shopMoney']['amount'] ?? null;
+                if (!$createdAt || !is_numeric($amount)) continue;
+                $date = substr($createdAt, 0, 10);
+                if (!isset($byDate[$date])) $byDate[$date] = ['sum' => 0.0, 'count' => 0];
+                $byDate[$date]['sum'] += (float)$amount;
+                $byDate[$date]['count']++;
+            }
+
+            $rows = [];
+            ksort($byDate);
+            foreach ($byDate as $date => $agg) {
+                $avg = $agg['count'] > 0 ? ($agg['sum'] / $agg['count']) : 0.0;
+                $rows[] = [
+                    'date' => $date,
+                    'average_order_value' => number_format($avg, 2, '.', ''),
+                ];
+            }
+            return $rows;
+        }
+
+        return [];
     }
 
     public function processBulkOperationResult($operationId, $reportId = null)

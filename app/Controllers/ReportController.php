@@ -530,6 +530,16 @@ class ReportController extends Controller
 
             // Poll for completion (max 20 seconds) to avoid PHP timeouts
             $status = 'PENDING';
+            // DIRECT mode completes immediately (no bulk operation/polling)
+            if (is_string($operationId) && strpos($operationId, 'DIRECT:') === 0) {
+                $status = 'COMPLETED';
+                $this->json([
+                    'success' => true,
+                    'operation_id' => $operationId,
+                    'status' => $status,
+                    'message' => 'Report generated'
+                ]);
+            }
             for ($i = 0; $i < 20; $i++) {
                 sleep(1); // Wait 1s
                 try {
