@@ -104,12 +104,55 @@ class ApiController extends Controller
         if ($status && isset($status['node'])) {
             $node = $status['node'];
             $bulkOpModel->update($operation['id'], ['status' => $node['status']]);
-            
+
+            $errorCode = $node['errorCode'] ?? null;
+            $message = null;
+            $debug = null;
+            if (($node['status'] ?? null) === 'FAILED' && $errorCode === 'ACCESS_DENIED') {
+                $message = 'Shopify denied access to one or more fields used in this report query.';
+
+                // Diagnose whether this is missing scopes (token not reauthorized) vs protected data restrictions.
+                $required = $this->config['shopify']['scopes'] ?? '';
+                $requiredScopes = array_values(array_filter(array_map('trim', explode(',', (string)$required))));
+
+                $grantedScopes = null;
+                try {
+                    $grantedScopes = $shopifyService->getGrantedAccessScopes();
+                } catch (\Throwable $e) {
+                    // Ignore; we’ll still return a helpful message.
+                    error_log("ApiController::bulkOperationStatus - getGrantedAccessScopes error: " . $e->getMessage());
+                }
+
+                $missingScopes = null;
+                if (is_array($grantedScopes)) {
+                    $missingScopes = array_values(array_diff($requiredScopes, $grantedScopes));
+                }
+
+                if (is_array($missingScopes) && count($missingScopes) > 0) {
+                    $message .= ' Your token is missing required app permissions. Please reauthorize the app to grant the latest scopes.';
+                } else {
+                    $message .= ' This usually means the store has restricted/protected customer data access, or your app needs to be reauthorized after scope changes.';
+                }
+
+                $reauthorizeUrl = '/auth/install?shop=' . urlencode($shop['shop_domain']);
+
+                $debug = [
+                    'required_scopes' => $requiredScopes,
+                    'granted_scopes' => $grantedScopes,
+                    'missing_scopes' => $missingScopes,
+                    'reauthorize_url' => $reauthorizeUrl,
+                ];
+            }
+
             $this->json([
                 'status' => $node['status'],
                 'completed_at' => $node['completedAt'] ?? null,
                 'url' => $node['url'] ?? null,
-                'error_code' => $node['errorCode'] ?? null
+                'error_code' => $errorCode,
+                // Helpful context for debugging/support
+                'message' => $message,
+                'operation_type' => $operation['operation_type'] ?? null,
+                'debug' => $debug,
             ]);
         } else {
             $this->json(['error' => 'Failed to get status'], 500);

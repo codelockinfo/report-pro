@@ -54,6 +54,42 @@ class ShopifyService
         return $data['data'] ?? null;
     }
 
+    /**
+     * Fetch granted access scopes for the current token.
+     * Useful for diagnosing ACCESS_DENIED errors (missing scopes vs protected data restrictions).
+     */
+    public function getGrantedAccessScopes()
+    {
+        $url = "https://{$this->shopDomain}/admin/oauth/access_scopes.json";
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'X-Shopify-Access-Token: ' . $this->accessToken
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            error_log("ShopifyService::getGrantedAccessScopes - HTTP {$httpCode}: {$response}");
+            return null;
+        }
+
+        $data = json_decode($response, true);
+        $scopes = $data['access_scopes'] ?? [];
+
+        $handles = [];
+        foreach ($scopes as $s) {
+            if (isset($s['handle'])) $handles[] = $s['handle'];
+        }
+
+        return $handles;
+    }
+
     public function createBulkOperation($query)
     {
         // Mock for Local Dev - DISABLED to fetch real data

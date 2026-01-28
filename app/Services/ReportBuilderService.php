@@ -55,7 +55,8 @@ class ReportBuilderService
 
     private function buildOrdersQuery($filters, $columns, $groupBy, $aggregations)
     {
-        $query = "query { orders { edges { node { ";
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        $query = "query { orders(first: 250) { edges { node { ";
         
         $fields = [];
         foreach ($columns as $column) {
@@ -98,7 +99,8 @@ class ReportBuilderService
 
     private function buildProductsQuery($filters, $columns, $groupBy, $aggregations)
     {
-        $query = "query { products { edges { node { ";
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        $query = "query { products(first: 250) { edges { node { ";
         
         $fields = [];
         foreach ($columns as $column) {
@@ -138,7 +140,8 @@ class ReportBuilderService
 
     private function buildCustomersQuery($filters, $columns, $groupBy, $aggregations)
     {
-        $query = "query { customers { edges { node { ";
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        $query = "query { customers(first: 250) { edges { node { ";
         
         $fields = [];
         foreach ($columns as $column) {
@@ -201,7 +204,8 @@ class ReportBuilderService
         // Actually I need to append AFTER it.
         // I will use replace with context of the previous method ending.
         
-        $query = "query { transactions { edges { node { ";
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        $query = "query { transactions(first: 250) { edges { node { ";
         
         $fields = [];
         foreach ($columns as $column) {
@@ -225,7 +229,8 @@ class ReportBuilderService
 
     private function buildInventoryLevelsQuery($filters, $columns, $groupBy, $aggregations)
     {
-        $query = "query { inventoryLevels { edges { node { ";
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        $query = "query { inventoryLevels(first: 250) { edges { node { ";
         
         $fields = [];
         foreach ($columns as $column) {
@@ -262,7 +267,8 @@ class ReportBuilderService
 
     private function buildDraftOrdersQuery($filters, $columns, $groupBy, $aggregations)
     {
-        $query = "query { draftOrders { edges { node { ";
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        $query = "query { draftOrders(first: 250) { edges { node { ";
         $fields = [];
         foreach ($columns as $column) {
             switch ($column) {
@@ -282,7 +288,8 @@ class ReportBuilderService
     private function buildLineItemsQuery($filters, $columns, $groupBy, $aggregations)
     {
         // For Bulk API, we fetch lineItems under orders
-        $query = "query { orders { edges { node { id name createdAt ";
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        $query = "query { orders(first: 250) { edges { node { id name createdAt ";
         $query .= "lineItems { edges { node { ";
         
         $fields = [];

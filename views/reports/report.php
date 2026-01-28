@@ -1977,6 +1977,13 @@ $baseUrl = rtrim($appUrl, '/');
                         if(!isAuto) {
                             let msg = 'Report generation failed with status: ' + status;
                             if(resData.error_code) msg += ' (' + resData.error_code + ')';
+                            if(resData.message) msg += `\n\n${resData.message}`;
+                            if(resData.debug && resData.debug.missing_scopes && resData.debug.missing_scopes.length) {
+                                msg += `\n\nMissing scopes:\n- ${resData.debug.missing_scopes.join('\n- ')}`;
+                            }
+                            if(resData.debug && resData.debug.reauthorize_url) {
+                                msg += `\n\nReauthorize here:\n${window.location.origin}${resData.debug.reauthorize_url}`;
+                            }
                             alert(msg);
                             resetSyncButton();
                         }
