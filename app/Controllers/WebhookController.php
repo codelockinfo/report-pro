@@ -15,12 +15,11 @@ class WebhookController extends Controller
         
         // Log the hit
         error_log("=== WEBHOOK: APP_UNINSTALLED HIT ===");
-        error_log("Headers: " . json_encode($headers));
         
-        $json = file_get_contents('php://input');
-        $data = json_decode($json, true);
-        error_log("Payload: " . $json);
-
+        // Read input ONCE
+        $rawBody = file_get_contents('php://input');
+        $data = json_decode($rawBody, true);
+        
         // Try to get shop domain from multiple sources
         $shopDomain = $shopHeader;
         if (empty($shopDomain)) {
@@ -35,8 +34,8 @@ class WebhookController extends Controller
 
         error_log("WEBHOOK: Processing uninstallation for shop: {$shopDomain}");
 
-        // Verify webhook
-        if (!$this->verifyWebhook()) {
+        // Verify webhook using the raw body we already read
+        if (!$this->verifyWebhook($rawBody)) {
             error_log("WEBHOOK ERROR: Verification failed for shop: {$shopDomain}");
             http_response_code(401);
             exit;
@@ -59,60 +58,61 @@ class WebhookController extends Controller
 
     public function customersDataRequest()
     {
-        // Handle GDPR data request
-        $data = json_decode(file_get_contents('php://input'), true);
+        $rawBody = file_get_contents('php://input');
         
-        if (!$this->verifyWebhook()) {
+        if (!$this->verifyWebhook($rawBody)) {
             http_response_code(401);
             exit;
         }
 
-        // Store data request and process it
-        // This would typically be queued for processing
+        // Handle GDPR data request
+        $data = json_decode($rawBody, true);
         
+        // Store data request and process it
         http_response_code(200);
         exit;
     }
 
     public function customersRedact()
     {
-        // Handle GDPR customer redaction
-        $data = json_decode(file_get_contents('php://input'), true);
+        $rawBody = file_get_contents('php://input');
         
-        if (!$this->verifyWebhook()) {
+        if (!$this->verifyWebhook($rawBody)) {
             http_response_code(401);
             exit;
         }
 
-        // Redact customer data
-        // Remove or anonymize customer data
+        // Handle GDPR customer redaction
+        $data = json_decode($rawBody, true);
         
+        // Redact customer data
         http_response_code(200);
         exit;
     }
 
     public function shopRedact()
     {
-        // Handle GDPR shop redaction
-        $data = json_decode(file_get_contents('php://input'), true);
+        $rawBody = file_get_contents('php://input');
         
-        if (!$this->verifyWebhook()) {
+        if (!$this->verifyWebhook($rawBody)) {
             http_response_code(401);
             exit;
         }
 
-        // Redact shop data
+        // Handle GDPR shop redaction
+        $data = json_decode($rawBody, true);
         
+        // Redact shop data
         http_response_code(200);
         exit;
     }
 
-    private function verifyWebhook()
+    private function verifyWebhook($data)
     {
         $headers = getallheaders();
         $hmac = $headers['X-Shopify-Hmac-Sha256'] ?? '';
-        $data = file_get_contents('php://input');
         
+        // Use the config from the controller
         $config = $this->config['shopify'];
         $calculatedHmac = base64_encode(hash_hmac('sha256', $data, $config['api_secret'], true));
         
