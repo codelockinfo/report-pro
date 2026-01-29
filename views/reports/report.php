@@ -333,8 +333,13 @@ $baseUrl = rtrim($appUrl, '/');
             </a>
             <h1 class="report-title"><?= htmlspecialchars($report['name']) ?></h1>
             <div class="title-icons">
-                <button class="icon-btn" title="Favorite">
-                    <svg viewBox="0 0 20 20" class="Polaris-Icon__Svg" focusable="false" aria-hidden="true" style="fill: rgb(74, 74, 74);"><path fill-rule="evenodd" d="M8.872 4.123c.453-.95 1.803-.95 2.256 0l1.39 2.912 3.199.421c1.042.138 1.46 1.422.697 2.146l-2.34 2.222.587 3.172c.192 1.034-.901 1.828-1.825 1.327l-2.836-1.54-2.836 1.54c-.924.501-2.017-.293-1.825-1.327l.587-3.172-2.34-2.222c-.762-.724-.345-2.008.697-2.146l3.2-.421 1.389-2.912Zm1.128 1.119-1.222 2.561a1.25 1.25 0 0 1-.965.701l-2.814.371 2.058 1.954c.307.292.446.718.369 1.134l-.517 2.791 2.495-1.354a1.25 1.25 0 0 1 1.192 0l2.495 1.354-.517-2.79a1.25 1.25 0 0 1 .369-1.135l2.058-1.954-2.814-.37a1.25 1.25 0 0 1-.965-.702l-1.222-2.561Z"></path></svg>
+                <button class="icon-btn star-button <?= ($report['is_favorite'] ?? 0) ? 'active' : '' ?>" 
+                        title="Favorite" 
+                        onclick="toggleReportFavorite(this, <?= $report['id'] ?>)">
+                    <svg viewBox="0 0 20 20" class="Polaris-Icon__Svg" focusable="false" aria-hidden="true" 
+                         style="fill: <?= ($report['is_favorite'] ?? 0) ? '#FFB100' : 'rgb(74, 74, 74)' ?>; color: <?= ($report['is_favorite'] ?? 0) ? '#FFB100' : 'rgb(74, 74, 74)' ?>">
+                        <path fill-rule="evenodd" d="M8.872 4.123c.453-.95 1.803-.95 2.256 0l1.39 2.912 3.199.421c1.042.138 1.46 1.422.697 2.146l-2.34 2.222.587 3.172c.192 1.034-.901 1.828-1.825 1.327l-2.836-1.54-2.836 1.54c-.924.501-2.017-.293-1.825-1.327l.587-3.172-2.34-2.222c-.762-.724-.345-2.008.697-2.146l3.2-.421 1.389-2.912Zm1.128 1.119-1.222 2.561a1.25 1.25 0 0 1-.965.701l-2.814.371 2.058 1.954c.307.292.446.718.369 1.134l-.517 2.791 2.495-1.354a1.25 1.25 0 0 1 1.192 0l2.495 1.354-.517-2.79a1.25 1.25 0 0 1 .369-1.135l2.058-1.954-2.814-.37a1.25 1.25 0 0 1-.965-.702l-1.222-2.561Z"></path>
+                    </svg>
                 </button>
                 <button class="icon-btn" title="Edit">
                     <svg viewBox="0 0 20 20" class="Polaris-Icon__Svg" focusable="false" aria-hidden="true" style="fill: rgb(74, 74, 74);"><path fill-rule="evenodd" d="M15.655 4.344a2.695 2.695 0 0 0-3.81 0l-.599.599-.009-.009-1.06 1.06.008.01-5.88 5.88a2.75 2.75 0 0 0-.805 1.944v1.922a.75.75 0 0 0 .75.75h1.922a2.75 2.75 0 0 0 1.944-.806l7.54-7.539a2.695 2.695 0 0 0 0-3.81Zm-4.409 2.72-5.88 5.88a1.25 1.25 0 0 0-.366.884v1.172h1.172c.331 0 .65-.132.883-.366l5.88-5.88-1.689-1.69Zm2.75.629.599-.599a1.195 1.195 0 1 0-1.69-1.689l-.598.599 1.69 1.689Z"></path></svg>
@@ -1379,7 +1384,7 @@ $baseUrl = rtrim($appUrl, '/');
     const baseUrl = "<?= $baseUrl ?>";
     const reportShopDomain = "<?= htmlspecialchars($shop['shop_domain']) ?>";
     const reportHost = "<?= htmlspecialchars($host) ?>";
-    const reportColumns = <?php 
+    let activeReportColumns = <?php 
         $config = json_decode($report['query_config'], true);
         echo json_encode($config['columns'] ?? []); 
     ?>;
@@ -1402,6 +1407,59 @@ $baseUrl = rtrim($appUrl, '/');
             if (d.id !== id) d.classList.remove('show');
         });
         document.getElementById(id).classList.toggle('show');
+    }
+
+    // Toggle Favorite Function for Detail Page
+    function toggleReportFavorite(btn, id) {
+        const svg = btn.querySelector('svg');
+        const isActive = btn.classList.contains('active');
+        
+        // Optimistic UI update
+        if (isActive) {
+            btn.classList.remove('active');
+            svg.style.fill = 'rgb(74, 74, 74)';
+            svg.style.color = 'rgb(74, 74, 74)';
+        } else {
+            btn.classList.add('active');
+            svg.style.fill = '#FFB100';
+            svg.style.color = '#FFB100';
+        }
+
+        const authParams = window.location.search || '';
+        fetch(`${baseUrl}/reports/toggle-favorite${authParams}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                // Revert if failed
+                if (isActive) {
+                    btn.classList.add('active');
+                    svg.style.fill = '#FFB100';
+                    svg.style.color = '#FFB100';
+                } else {
+                    btn.classList.remove('active');
+                    svg.style.fill = 'rgb(74, 74, 74)';
+                    svg.style.color = 'rgb(74, 74, 74)';
+                }
+                alert('Failed to update favorite: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+             // Revert if failed
+             if (isActive) {
+                btn.classList.add('active');
+                svg.style.fill = '#FFB100';
+                svg.style.color = '#FFB100';
+            } else {
+                btn.classList.remove('active');
+                svg.style.fill = 'rgb(74, 74, 74)';
+                svg.style.color = 'rgb(74, 74, 74)';
+            }
+        });
     }
 
     // Close when clicking outside
@@ -1675,6 +1733,11 @@ $baseUrl = rtrim($appUrl, '/');
                      end.setFullYear(end.getFullYear() - 1); // Fixed year basic logic
                      label = "Last year";
                      break;
+                case 'all_time':
+                     start = null;
+                     end = null;
+                     label = "All Time";
+                     break;
                 default:
                     return;
             }
@@ -1682,7 +1745,12 @@ $baseUrl = rtrim($appUrl, '/');
             this.startDate = start;
             this.endDate = end;
             // Set viewDate to Start Month (Left Grid)
-            this.viewDate = new Date(start.getFullYear(), start.getMonth(), 1);
+            if (start) {
+                this.viewDate = new Date(start.getFullYear(), start.getMonth(), 1);
+            } else {
+                const now = new Date();
+                this.viewDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            }
             
             // Update button text
             if(this.els.selectPreset) {
@@ -1912,10 +1980,20 @@ $baseUrl = rtrim($appUrl, '/');
             }
         }
         
-        let bodyFn = {};
+        let bodyFn = { filters: [] };
         if (datePickerInstance && datePickerInstance.startDate && datePickerInstance.endDate) {
-             bodyFn.start_date = datePickerInstance.startDate.toISOString().split('T')[0];
-             bodyFn.end_date = datePickerInstance.endDate.toISOString().split('T')[0];
+             const start = datePickerInstance.startDate.toISOString().split('T')[0];
+             const end = datePickerInstance.endDate.toISOString().split('T')[0];
+             bodyFn.filters.push({
+                 field: 'created_at',
+                 operator: '>=',
+                 value: start
+             });
+             bodyFn.filters.push({
+                 field: 'created_at',
+                 operator: '<=',
+                 value: end
+             });
         }
 
         shopFetch(`${baseUrl}/reports/${reportId}/run`, { 
@@ -2064,13 +2142,17 @@ $baseUrl = rtrim($appUrl, '/');
             .then(data => {
                 if (data.data && data.data.length > 0) {
                     let rows = data.data;
+                    
+                    // Update columns if provided (e.g. after auto-patch)
+                    if (data.columns && Array.isArray(data.columns)) {
+                        activeReportColumns = data.columns;
+                    }
 
                     // Debug logging
                     // console.log("Raw rows:", rows.length, rows[0]);
 
                     const originalCount = rows.length;
                     
-                    // Client-side Date Filtering
                     if (startDate && endDate) {
                         const start = new Date(startDate);
                         start.setHours(0,0,0,0);
@@ -2149,7 +2231,7 @@ $baseUrl = rtrim($appUrl, '/');
             renderChart(rows);
         }
         
-        const configColumns = reportColumns; 
+        const configColumns = activeReportColumns; 
         
         // Column definitions with formatters
         const columnDefs = {
@@ -2192,9 +2274,18 @@ $baseUrl = rtrim($appUrl, '/');
                     'sku': { label: 'SKU', key: 'inventoryItem', formatter: val => val?.sku || '' },
                     'updated_at': { label: 'Updated At', key: 'updatedAt', formatter: val => formatDate(val) },
                     
-                    // Line Items
+                    // Line Items & Products
                     'quantity': { label: 'Quantity', key: 'quantity' },
-                    'price': { label: 'Price', key: 'priceSet', formatter: val => formatMoney(val?.shopMoney) },
+                    'price': { 
+                        label: 'Price', 
+                        key: 'priceSet', 
+                        formatter: (val, row) => {
+                            // Products: priceRangeV2
+                            if (row.priceRangeV2) return formatMoney(row.priceRangeV2.minVariantPrice);
+                            // Line Items: priceSet (val)
+                            return formatMoney(val?.shopMoney);
+                        }
+                    },
 
                     // Sales Summary formatters
                     'total_orders': { label: 'Total orders' },
@@ -2214,7 +2305,14 @@ $baseUrl = rtrim($appUrl, '/');
 
                     // Browser Share specific
                     'browser': { label: 'Browser' },
-                    'sessions_count': { label: 'Sessions', formatter: val => val ? val.toLocaleString() : '0' }
+                    'sessions_count': { label: 'Sessions', formatter: val => val ? val.toLocaleString() : '0' },
+                    
+                    // Products By Type specific
+                    'product_type': { label: 'Product Type' },
+                    'total_variants': { label: 'Total Variants' },
+                    'total_quantity': { label: 'Total Quantity' },
+                    'total_inventory_value': { label: 'Total Inventory Value', formatter: val => formatMoney(val) },
+                    'total_inventory_cost': { label: 'Total Inventory Cost', formatter: val => formatMoney(val) }
         };
 
         // Map PHP config columns to keys in data and display labels

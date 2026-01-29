@@ -85,6 +85,7 @@ class ReportController extends Controller
             $needsUpdate = false;
             $updateData = [];
             
+            // Also sanitize columns for datasets where Shopify may block protected customer data.
             if ($existing[0]['query_config'] !== json_encode($reportConfig['config'])) {
                 $updateData['query_config'] = json_encode($reportConfig['config']);
                 $needsUpdate = true;
@@ -121,6 +122,8 @@ class ReportController extends Controller
             'host' => $_GET['host'] ?? ''
         ]);
     }
+
+
 
     public function toggleFavorite()
     {
@@ -514,6 +517,25 @@ class ReportController extends Controller
             }
         }
 
+        // AUTO-PATCH: Ensure products dataset has price column
+        if (isset($config['dataset']) && $config['dataset'] === 'products') {
+            $columns = $config['columns'] ?? [];
+            if (!in_array('price', $columns)) {
+                error_log("ReportController::run - Auto-patching report {$id} to include price");
+                // Insert after title if possible, otherwise append
+                $found = array_search('title', $columns);
+                if ($found !== false) {
+                     array_splice($columns, $found + 1, 0, 'price');
+                } else {
+                     $columns[] = 'price';
+                }
+                $config['columns'] = $columns;
+                $reportModel->update($id, ['query_config' => json_encode($config)]);
+                // Reload report to get fresh config for execution
+                $report = $reportModel->find($id); 
+            }
+        }
+
         try {
             error_log("ReportController::run - Creating ShopifyService");
             $shopifyService = new \App\Services\ShopifyService(
@@ -524,8 +546,45 @@ class ReportController extends Controller
             error_log("ReportController::run - Creating ReportBuilderService");
             $reportBuilder = new ReportBuilderService($shopifyService, $shop['id']);
             
+            // Read runtime config from request body
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $runtimeConfig = [];
+            
+            // Check for filters in request body
+            if (isset($input['filters'])) {
+                $runtimeConfig['filters'] = $input['filters'];
+            }
+            
+            // CRITICAL FIX: Convert start_date/end_date from query params to filters
+            if (isset($_GET['start_date']) && isset($_GET['end_date'])) {
+                $startDate = $_GET['start_date'];
+                $endDate = $_GET['end_date'];
+                
+                error_log("ReportController::run - Converting date params: start={$startDate}, end={$endDate}");
+                
+                // Create filters array for date range
+                $runtimeConfig['filters'] = [
+                    [
+                        'field' => 'created_at',
+                        'operator' => '>=',
+                        'value' => $startDate
+                    ],
+                    [
+                        'field' => 'created_at',
+                        'operator' => '<=',
+                        'value' => $endDate
+                    ]
+                ];
+            }
+            
+            if (isset($_GET['filters'])) {
+                 // Fallback for GET (less likely for complex filters but possible)
+                 $runtimeConfig['filters'] = $_GET['filters']; 
+            }
+
+            error_log("ReportController::run - Runtime Config: " . json_encode($runtimeConfig));
             error_log("ReportController::run - Executing report");
-            $operationId = $reportBuilder->executeReport($id);
+            $operationId = $reportBuilder->executeReport($id, $runtimeConfig);
             error_log("ReportController::run - Report executed, Operation ID: {$operationId}");
 
             // Poll for completion (max 20 seconds) to avoid PHP timeouts
@@ -585,18 +644,22 @@ class ReportController extends Controller
             $this->json(['error' => 'Report not found'], 404);
         }
 
-        $resultModel = new ReportResult();
+        $resultModel = new \App\Models\ReportResult();
         $result = $resultModel->findByReport($id);
 
+        $config = json_decode($report['query_config'], true) ?? [];
+        $columns = $config['columns'] ?? [];
+
         if (!$result) {
-            $this->json(['data' => [], 'total' => 0]);
+            $this->json(['data' => [], 'total' => 0, 'columns' => $columns]);
         }
 
         $data = json_decode($result['result_data'], true);
         
         $this->json([
             'data' => $data,
-            'total' => $result['total_records']
+            'total' => $result['total_records'],
+            'columns' => $columns
         ]);
     }
 
@@ -753,7 +816,7 @@ class ReportController extends Controller
                 'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'products',
-                    'columns' => ['id', 'title', 'product_type', 'vendor', 'created_at', 'total_inventory', 'status']
+                    'columns' => ['id', 'title', 'price', 'product_type', 'vendor', 'created_at', 'total_inventory', 'status']
                 ]
             ];
         }
@@ -769,7 +832,7 @@ class ReportController extends Controller
 
         // 3. Customers Reports (Dataset: customers)
         $customerReports = [
-            'customers', 'customers_country', 'users_list', 'markets'
+            'customers', 'users_list', 'markets'
         ];
 
         $names = $this->getReportNamesMapping();
@@ -779,10 +842,20 @@ class ReportController extends Controller
                 'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'customers',
-                    'columns' => ['id', 'created_at', 'updated_at', 'orders_count', 'total_spent', 'accepts_marketing']
+                    'columns' => ['id', 'full_name', 'email', 'created_at', 'updated_at', 'orders_count', 'total_spent', 'accepts_marketing']
                 ]
             ];
         }
+
+        // Specific Report: Total customers per country
+        $reports['customers_country'] = [
+            'name' => 'Total customers per country',
+            'description' => 'Aggregated count of customers by country',
+            'config' => [
+                'dataset' => 'customers_by_country',
+                'columns' => ['country', 'total_customers']
+            ]
+        ];
 
         // 4. Transactions / Financial Reports (Dataset: transactions)
         $transactionReports = [

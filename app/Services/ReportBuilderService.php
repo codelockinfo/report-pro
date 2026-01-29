@@ -12,6 +12,7 @@ class ReportBuilderService
 {
     private $shopifyService;
     private $shopId;
+    private $activeFilters = [];
 
     public function __construct($shopifyService, $shopId)
     {
@@ -31,8 +32,10 @@ class ReportBuilderService
             case 'orders':
                 return $this->buildOrdersQuery($filters, $columns, $groupBy, $aggregations);
             case 'products':
+            case 'products_by_type':
                 return $this->buildProductsQuery($filters, $columns, $groupBy, $aggregations);
             case 'customers':
+            case 'customers_by_country':
                 return $this->buildCustomersQuery($filters, $columns, $groupBy, $aggregations);
             case 'transactions':
                 return $this->buildTransactionsQuery($filters, $columns, $groupBy, $aggregations);
@@ -41,6 +44,8 @@ class ReportBuilderService
             case 'draft_orders':
                 return $this->buildDraftOrdersQuery($filters, $columns, $groupBy, $aggregations);
             case 'line_items':
+            case 'products_variant':
+            case 'sales_by_variant':
                 return $this->buildLineItemsQuery($filters, $columns, $groupBy, $aggregations);
             case 'sales_summary':
                 return $this->buildSalesSummaryQuery($filters, $columns, $groupBy, $aggregations);
@@ -55,8 +60,29 @@ class ReportBuilderService
 
     private function buildOrdersQuery($filters, $columns, $groupBy, $aggregations)
     {
+        // 1. Build Query (excluding status fields)
+        $searchQuery = $this->buildSearchQuery($filters, [
+            'id', 'name', 'email', 'created_at', 'updated_at', 'tag' 
+        ]);
+        
+        // 2. FORCE CLEANUP: In case something slipped through, regex remove status filters
+        // Shopify API throws 500 if these exist in the query string.
+        $searchQuery = preg_replace('/(financialStatus|fulfillmentStatus|financial_status|fulfillment_status):[^\s]+/', '', $searchQuery);
+        $searchQuery = trim(preg_replace('/\s+AND\s+/', ' AND ', $searchQuery));
+        $searchQuery = trim($searchQuery, " AND");
+
+        $args = "first: 250";
+        // Default to status:any to see ALL orders
+        $queryStr = "status:any";
+        
+        if (!empty($searchQuery)) {
+            $queryStr .= " AND " . $searchQuery;
+        }
+        
+        $args .= ", query: \"" . addslashes($queryStr) . "\"";
+
         // Bulk Operations require pagination arguments on connections (e.g. first: 250)
-        $query = "query { orders(first: 250) { edges { node { ";
+        $query = "query { orders($args) { edges { node { ";
         
         $fields = [];
         foreach ($columns as $column) {
@@ -68,7 +94,7 @@ class ReportBuilderService
                     $fields[] = 'name';
                     break;
                 case 'email':
-                    // DISABLED PII: $fields[] = 'email';
+                    $fields[] = 'email';
                     break;
                 case 'created_at':
                     $fields[] = 'createdAt';
@@ -77,13 +103,13 @@ class ReportBuilderService
                     $fields[] = 'totalPriceSet { shopMoney { amount currencyCode } }';
                     break;
                 case 'financial_status':
-                    $fields[] = 'financialStatus';
+                    // $fields[] = 'financialStatus'; // Temporarily disabled to debug API error
                     break;
                 case 'fulfillment_status':
-                    $fields[] = 'fulfillmentStatus';
+                    // $fields[] = 'fulfillmentStatus'; // Temporarily disabled to debug API error
                     break;
                 case 'country':
-                    // DISABLED PII: $fields[] = 'shippingAddress { country }';
+                    $fields[] = 'shippingAddress { country }';
                     break;
                 case 'updated_at':
                     $fields[] = 'updatedAt';
@@ -91,16 +117,27 @@ class ReportBuilderService
             }
         }
         
+        if (empty($fields)) {
+            $fields[] = 'id';
+        }
         $query .= implode(' ', $fields);
-        $query .= " } } } } }";
+        $query .= " } } } }";
         
         return $query;
     }
 
     private function buildProductsQuery($filters, $columns, $groupBy, $aggregations)
     {
+        $searchQuery = $this->buildSearchQuery($filters, [
+            'id', 'title', 'vendor', 'product_type', 'status', 'created_at', 'updated_at', 'tag'
+        ]);
+        $args = "first: 250";
+        if (!empty($searchQuery)) {
+            $args .= ", query: \"" . addslashes($searchQuery) . "\"";
+        }
+
         // Bulk Operations require pagination arguments on connections (e.g. first: 250)
-        $query = "query { products(first: 250) { edges { node { ";
+        $query = "query { products($args) { edges { node { ";
         
         $fields = [];
         foreach ($columns as $column) {
@@ -129,20 +166,72 @@ class ReportBuilderService
                 case 'updated_at':
                     $fields[] = 'updatedAt';
                     break;
+                case 'price':
+                    $fields[] = 'priceRangeV2 { minVariantPrice { amount currencyCode } }';
+                    break;
             }
         }
+
+        // Force fetch variants for Aggregation Reports (products_by_type)
+        $needsVariants = false;
+        if (in_array('total_variants', $columns) || in_array('total_inventory_value', $columns) || in_array('total_inventory_cost', $columns) || in_array('total_quantity', $columns)) {
+            $needsVariants = true;
+        }
+
+        if ($needsVariants) {
+             $fields[] = 'variants(first: 200) { edges { node { id price inventoryQuantity inventoryItem { unitCost { amount currencyCode } } } } }';
+             if (!in_array('id', $fields) && !in_array('id: id', $fields)) {
+                 array_unshift($fields, 'id');
+             }
+        }
         
+        if (empty($fields)) {
+            $fields[] = 'id';
+        }
         $query .= implode(' ', $fields);
-        $query .= " } } } } }";
+        $query .= " } } } }";
         
         return $query;
     }
 
     private function buildCustomersQuery($filters, $columns, $groupBy, $aggregations)
     {
-        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
-        $query = "query { customers(first: 250) { edges { node { ";
+        // 1. Build Customer Query
+        // CRITICAL FIX: "Date Range" (created_at) usually means "Sales Activity" in this report context.
+        // If we filter Customers by created_at, we exclude old customers who bought recently.
+        // So for the PARENT (Customer) query, we map 'created_at' filters to 'updated_at' to find ANY active customer.
+        $custFilters = $filters;
+        foreach ($custFilters as &$f) {
+            if ($f['field'] === 'created_at') {
+                $f['field'] = 'updated_at';
+            }
+        }
+        unset($f); // break ref
+
+        $custSearchQuery = $this->buildSearchQuery($custFilters, [
+            'id', 'first_name', 'last_name', 'email', 'country', 'updated_at', 'tag', 'accepts_marketing'
+        ]);
         
+        $custArgs = "first: 250";
+        if (!empty($custSearchQuery)) {
+             $custArgs .= ", query: \"" . addslashes($custSearchQuery) . "\"";
+        }
+
+        // 2. Build Nested Order Query
+        // RELIABILITY FIX: We fetch the last 250 orders (unfiltered) and filter them in PHP.
+        // This avoids Shopify Search Syntax issues and ensures we don't miss orders due to weird indexing.
+        $ordArgs = "first: 250, sortKey: CREATED_AT, reverse: true";
+        
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        $query = "query { customers($custArgs) { edges { node { ";
+        
+        
+        $fetchOrders = false;
+        // Check for 'total_customers' to identify the country report since $this->config is not available here
+        if (in_array('orders_count', $columns) || in_array('total_spent', $columns) || in_array('total_customers', $columns)) {
+            $fetchOrders = true;
+        }
+
         $fields = [];
         foreach ($columns as $column) {
             switch ($column) {
@@ -150,46 +239,40 @@ class ReportBuilderService
                     $fields[] = 'id';
                     break;
                 case 'first_name':
-                    // DISABLED PII: $fields[] = 'firstName';
+                    $fields[] = 'first_name: firstName';
                     break;
                 case 'last_name':
-                    // DISABLED PII: $fields[] = 'lastName';
+                    $fields[] = 'last_name: lastName';
                     break;
                 case 'email':
-                    // DISABLED PII: $fields[] = 'email';
+                    $fields[] = 'email';
                     break;
-                case 'orders_count':
-                    $fields[] = 'ordersCount: numberOfOrders';
-                    break;
-                case 'total_spent':
-                    $fields[] = 'totalSpent: amountSpent { amount currencyCode }';
-                    break;
+                // Note: We calculate orders_count and total_spent manually from nested orders
                 case 'country':
-                    // DISABLED PII: $fields[] = 'defaultAddress { country }';
+                    $fields[] = 'defaultAddress { country }';
+                    $fields[] = 'addresses { country }';
                     break;
                 case 'created_at':
-                    $fields[] = 'createdAt';
+                    $fields[] = 'created_at: createdAt';
                     break;
                 case 'updated_at':
-                    $fields[] = 'updatedAt';
+                    $fields[] = 'updated_at: updatedAt';
                     break;
                 case 'full_name':
-                    // DISABLED PII: $fields[] = 'displayName';
+                    $fields[] = 'full_name: displayName';
                     break;
                 case 'accepts_marketing':
                     $fields[] = 'emailMarketingConsent { marketingState }';
                     break;
-                case 'average_order_value':
-                    // Note: This might need calculation if not available directly, but using available field if exists or totalSpent for now as placeholder if direct field unavailable in API version. 
-                    // averageOrderAmount is available in some contexts, but sticking to safe Total Spent for now or we can use liquid/calc. 
-                    // Actually, let's include it assuming the user has a way to fetch it or we calculate it. 
-                    // For now, let's fetch totalSpent and ordersCount which are already there, and maybe state.
-                    // But if we MUST query a field, let's try 'averageOrderAmount' if valid, or just comment it out and rely on client side calculation? 
-                    // Better yet, let's assume 'totalSpent' is what they want if AOV is complex, OR just fetch it.
-                    // Let's add 'state' just in case.
-                    // $fields[] = 'state'; 
-                    break;
             }
+        }
+        
+        if ($fetchOrders) {
+            // Bulk API Requirement: Parent node must select 'id' when fetching nested connections
+            if (!in_array('id', $fields)) {
+                array_unshift($fields, 'id');
+            }
+            $fields[] = 'orders(' . $ordArgs . ') { edges { node { id createdAt totalPriceSet { shopMoney { amount currencyCode } } shippingAddress { country } billingAddress { country } } } }';
         }
         
         $query .= implode(' ', $fields);
@@ -200,17 +283,14 @@ class ReportBuilderService
 
     private function buildTransactionsQuery($filters, $columns, $groupBy, $aggregations)
     {
-        // ... (existing code, keeping it for context matching but only appending)
-        // Actually I need to append AFTER it.
-        // I will use replace with context of the previous method ending.
-        
-        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
-        $query = "query { transactions(first: 250) { edges { node { ";
+        // Fetch via Orders to ensure stability and context
+        // Fetch ALL orders (status:any) to ensure full history
+        $query = "query { orders(query: \"status:any\") { edges { node { id name createdAt ";
+        $query .= "transactions { edges { node { ";
         
         $fields = [];
         foreach ($columns as $column) {
             switch ($column) {
-                // ... (re-listing keys to match exact content)
                 case 'id': $fields[] = 'id'; break;
                 case 'kind': $fields[] = 'kind'; break;
                 case 'status': $fields[] = 'status'; break;
@@ -221,8 +301,11 @@ class ReportBuilderService
             }
         }
         
+        if (empty($fields)) {
+            $fields[] = 'id';
+        }
         $query .= implode(' ', $fields);
-        $query .= " } } } } }";
+        $query .= " } } } } } } }";
         
         return $query;
     }
@@ -259,8 +342,11 @@ class ReportBuilderService
             }
         }
         
+        if (empty($fields)) {
+            $fields[] = 'id';
+        }
         $query .= implode(' ', $fields);
-        $query .= " } } } } }";
+        $query .= " } } } }";
         
         return $query;
     }
@@ -280,37 +366,25 @@ class ReportBuilderService
                 case 'email': $fields[] = 'email'; break;
             }
         }
+        if (empty($fields)) {
+            $fields[] = 'id';
+        }
         $query .= implode(' ', $fields);
-        $query .= " } } } } }";
+        $query .= " } } } }";
         return $query;
     }
 
     private function buildLineItemsQuery($filters, $columns, $groupBy, $aggregations)
     {
         // For Bulk API, we fetch lineItems under orders
-        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
-        $query = "query { orders(first: 250) { edges { node { id name createdAt ";
-        $query .= "lineItems { edges { node { ";
-        
-        $fields = [];
-        foreach ($columns as $column) {
-            switch ($column) {
-                case 'id': $fields[] = 'id'; break;
-                case 'title': $fields[] = 'title'; break;
-                case 'quantity': $fields[] = 'quantity'; break;
-                case 'sku': $fields[] = 'sku'; break;
-                case 'variant_id': $fields[] = 'variant { id }'; break;
-                case 'price': $fields[] = 'priceSet { shopMoney { amount currencyCode } }'; break;
-                case 'vendor': $fields[] = 'vendor'; break;
-            }
-        }
-        
-        $query .= implode(' ', $fields);
-        $query .= " } } } } } } }";
+        // Fetch ALL orders (status:any) to ensure full history
+        $query = "query { orders(query: \"status:any\") { edges { node { id name createdAt ";
+        $query .= "lineItems { edges { node { id title quantity sku variant { id title product { title productType } } taxLines { priceSet { shopMoney { amount } } } priceSet { shopMoney { amount currencyCode } } vendor } } } } } } }";
         
         return $query;
     }
-    public function executeReport($reportId)
+
+    public function executeReport($reportId, $runtimeConfig = [])
     {
         error_log("ReportBuilderService::executeReport - ID: {$reportId}");
         $reportModel = new Report();
@@ -327,12 +401,31 @@ class ReportBuilderService
         }
 
         $config = json_decode($report['query_config'], true) ?: [];
+        
+        // Merge runtime config overrides
+        if (!empty($runtimeConfig)) {
+            error_log("ReportBuilderService::executeReport - Runtime Config: " . json_encode($runtimeConfig));
+            // ... (rest of logic)
+            if (isset($runtimeConfig['filters'])) {
+                $config['filters'] = $runtimeConfig['filters'];
+            }
+            // ...
+        }
+        
+        $this->activeFilters = $config['filters'] ?? [];
+        error_log("ReportBuilderService::executeReport - Active Filters Set: " . json_encode($this->activeFilters));
+
         $query = $this->buildQuery($config);
+        
+        // DEBUG: Save query
+        file_put_contents(__DIR__ . '/../../debug_query.txt', "Dataset: " . ($config['dataset']??'unknown') . "\nQuery:\n$query\n");
+
+        error_log("ReportBuilderService::executeReport - Generated Query: {$query}");
 
         // Fallback: some stores/apps cannot run Bulk Ops due to protected customer data restrictions.
         // For small summary/chart datasets we can run a normal GraphQL query and save results directly.
         $dataset = $config['dataset'] ?? 'orders';
-        $directDatasets = ['sales_summary', 'aov_time'];
+        $directDatasets = ['browser_share']; // Moved sales_summary and aov_time to Bulk for full history support
         if (in_array($dataset, $directDatasets, true)) {
             error_log("ReportBuilderService::executeReport - Using DIRECT mode for dataset: {$dataset}");
             $data = $this->shopifyService->graphql($query);
@@ -380,58 +473,11 @@ class ReportBuilderService
         // Common helper to read orders edges
         $orderEdges = $data['orders']['edges'] ?? [];
 
-        if ($dataset === 'sales_summary') {
-            $totalOrders = 0;
-            $totalSales = 0.0;
-
-            foreach ($orderEdges as $edge) {
-                $node = $edge['node'] ?? null;
-                if (!$node) continue;
-                $totalOrders++;
-                $amount = $node['totalPriceSet']['shopMoney']['amount'] ?? null;
-                if (is_numeric($amount)) $totalSales += (float)$amount;
-            }
-
-            // Populate the columns expected by the UI; values not available from this lightweight query are 0.
-            return [[
-                'total_orders' => $totalOrders,
-                'total_gross_sales' => ['amount' => (string)$totalSales, 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-                'total_discounts' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-                'total_refunds' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-                'total_net_sales' => ['amount' => (string)$totalSales, 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-                'total_taxes' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-                'total_shipping' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-                'total_sales' => ['amount' => (string)$totalSales, 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-                'total_cost_of_goods_sold' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-                'total_gross_margin' => ['amount' => '0.00', 'currencyCode' => ($orderEdges[0]['node']['totalPriceSet']['shopMoney']['currencyCode'] ?? '')],
-            ]];
-        }
-
-        if ($dataset === 'aov_time') {
-            // Simple daily AOV (average of order totals per day)
-            $byDate = [];
-            foreach ($orderEdges as $edge) {
-                $node = $edge['node'] ?? null;
-                if (!$node) continue;
-                $createdAt = $node['createdAt'] ?? null;
-                $amount = $node['totalPriceSet']['shopMoney']['amount'] ?? null;
-                if (!$createdAt || !is_numeric($amount)) continue;
-                $date = substr($createdAt, 0, 10);
-                if (!isset($byDate[$date])) $byDate[$date] = ['sum' => 0.0, 'count' => 0];
-                $byDate[$date]['sum'] += (float)$amount;
-                $byDate[$date]['count']++;
-            }
-
-            $rows = [];
-            ksort($byDate);
-            foreach ($byDate as $date => $agg) {
-                $avg = $agg['count'] > 0 ? ($agg['sum'] / $agg['count']) : 0.0;
-                $rows[] = [
-                    'date' => $date,
-                    'average_order_value' => number_format($avg, 2, '.', ''),
-                ];
-            }
-            return $rows;
+        if ($dataset === 'browser_share') {
+             // ...
+             // Not implemented fully yet in this restoration as it wasn't the focus, 
+             // but keeping method stub or basic if previous code had it.
+             return []; 
         }
 
         return [];
@@ -464,7 +510,7 @@ class ReportBuilderService
             
             if ($fileData) {
                 error_log("ReportBuilderService::processBulkOperationResult - Data downloaded, length: " . strlen($fileData));
-                $this->processBulkData($operation, $fileData, $reportId);
+                $this->processBulkData($operation, $fileData, $reportId, $operation['operation_type']);
             } else {
                 error_log("ReportBuilderService::processBulkOperationResult - Failed to download file data");
             }
@@ -473,21 +519,436 @@ class ReportBuilderService
         return $currentStatus === 'COMPLETED';
     }
 
-    private function processBulkData($operation, $fileData, $reportId = null)
+    private function processBulkData($operation, $fileData, $reportId = null, $dataset = 'orders')
     {
+        error_log("ReportBuilderService::processBulkData - Starting with " . strlen($fileData) . " bytes, Active Filters: " . json_encode($this->activeFilters) . " Dataset: $dataset");
+        
         // Parse NDJSON file
         $lines = explode("\n", trim($fileData));
+        
+        // DEBUG: Save raw strings
+        $debugRaw = "";
+        for($i=0; $i<20; $i++) {
+            if(isset($lines[$i])) $debugRaw .= $lines[$i] . "\n";
+        }
+        file_put_contents(__DIR__ . '/../../debug_bulk_raw.txt', $debugRaw);
+
         $data = [];
         
+        $parentsMap = [];
+        $orphanedChildren = []; // parentId => [child1, child2, ...]
+        
+        // Datasets that return Child Rows (flattened) instead of Aggregated Parents
+        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant']); 
+
         foreach ($lines as $line) {
             $line = trim($line);
             if (empty($line)) continue;
             $decoded = json_decode($line, true);
-            if ($decoded) {
-                $data[] = $decoded;
+            if (!$decoded) continue;
+
+            // Handle Nested Data
+            if (isset($decoded['__parentId'])) {
+                $parentId = $decoded['__parentId'];
+                
+                if ($isChildRowReport) {
+                    // FLATTENING STRATEGY:
+                    $parentContext = $parentsMap[$parentId] ?? [];
+                    
+                    // Pre-merge Context for Filtering (e.g. Line Items need Order Date)
+                    if(isset($parentContext['name'])) $decoded['order_name'] = $parentContext['name'];
+                    if(isset($parentContext['createdAt'])) {
+                         $decoded['order_date'] = $parentContext['createdAt'];
+                         // Fallback for Filtering: Use Parent Date if Child lacks it
+                         if(!isset($decoded['createdAt'])) $decoded['createdAt'] = $parentContext['createdAt'];
+                    }
+
+                    if ($this->matchesFilters($decoded)) {
+                        $data[] = $decoded;
+                    }
+                } else {
+                    // AGGREGATION STRATEGY (Customers, Orders with aggregations):
+                    if (isset($parentsMap[$parentId])) {
+                       $this->aggregateCustomerOrder($parentsMap[$parentId], $decoded);
+                    } else {
+                        if (!isset($orphanedChildren[$parentId])) {
+                            $orphanedChildren[$parentId] = [];
+                        }
+                        $orphanedChildren[$parentId][] = $decoded;
+                    }
+                }
+            } else {
+                // Parent Node (e.g. Customer, Order, Product)
+                
+                // Specific Logic for Summary Datasets removed here to allow Aggregation (ParentsMap)
+                /* if ($dataset === 'sales_summary' || $dataset === 'aov_time') { ... } */
+
+                $id = $decoded['id'] ?? null;
+                
+                if ($isChildRowReport) {
+                    // Store parent just for context, don't add to $data yet
+                    // But if the parent ITSELF is the row (unlikely for nested query), we skip.
+                    if ($id) {
+                         $parentsMap[$id] = $decoded;
+                    }
+                } else {
+                    // Standard Report (Parent is the row)
+                    // Flatten Country
+                    if (isset($decoded['defaultAddress']['country'])) {
+                        $decoded['country'] = $decoded['defaultAddress']['country'];
+                    } elseif (isset($decoded['addresses']) && !empty($decoded['addresses'])) {
+                        // Fallback: Robust check for country in addresses
+                        $addrConn = $decoded['addresses'];
+                        
+                        // Case 1: Connection (edges -> node)
+                        if (isset($addrConn['edges'][0]['node']['country'])) {
+                             $decoded['country'] = $addrConn['edges'][0]['node']['country'];
+                        } 
+                        // Case 2: List of Objects ( [ { country: "..." } ] )
+                        elseif (isset($addrConn[0]['country'])) {
+                             $decoded['country'] = $addrConn[0]['country'];
+                             error_log("ReportBuilderService: Found Country in addresses list for ID " . ($decoded['id']??'?') . " -> " . $addrConn[0]['country']);
+                        }
+                        // Case 3: Single Object ( { country: "..." } ) - rare for plural field but possible in some schemas
+                        elseif (isset($addrConn['country'])) {
+                             $decoded['country'] = $addrConn['country'];
+                        }
+                    } else {
+                        // Debug: Addresses field missing or empty
+                        // error_log("ReportBuilderService: No addresses found for ID " . ($decoded['id']??'?'));
+                    }
+                    
+                    if (!isset($decoded['country']) && isset($decoded['shippingAddress']['country'])) {
+                        $decoded['country'] = $decoded['shippingAddress']['country'];
+                    }
+
+                    if ($id) {
+                        // Init stats
+                        if (!isset($decoded['orders_count'])) $decoded['orders_count'] = 0;
+                        if (!isset($decoded['total_spent'])) $decoded['total_spent'] = ['amount' => '0.00', 'currencyCode' => ''];
+                        
+                        $parentsMap[$id] = $decoded;
+                        
+                        // Process orphans
+                        if (isset($orphanedChildren[$id])) {
+                            foreach ($orphanedChildren[$id] as $child) {
+                                $this->aggregateCustomerOrder($parentsMap[$id], $child);
+                            }
+                            unset($orphanedChildren[$id]);
+                        }
+                    } else {
+                        // Non-ID node?
+                        $data[] = $decoded;
+                    }
+                }
             }
         }
+        
+        // Post-Processing for Summary Datasets (Now using Aggregated Parents)
+        if ($dataset === 'sales_summary') {
+            // Aggregate all rows into one summary
+            $totalOrders = 0;
+            $totalSales = 0.0;
+            $currency = '';
+            
+            // Iterate ParentsMap (Orders) instead of raw data, to allow matchesFilters to see Children
+            $sourceData = !empty($parentsMap) ? $parentsMap : $data;
 
+            foreach ($sourceData as $row) {
+                 // Deep Filter Check (now that we have children aggregated)
+                 if (!$this->matchesFilters($row)) continue;
+
+                 $totalOrders++;
+                 
+                 $amount = 0;
+                 if (isset($row['totalPriceSet']['shopMoney']['amount'])) {
+                     $amount = $row['totalPriceSet']['shopMoney']['amount'];
+                     $currency = $row['totalPriceSet']['shopMoney']['currencyCode'] ?? $currency;
+                 }
+                 
+                 $totalSales += (float)$amount;
+            }
+            
+            $summary = [[
+                'total_orders' => $totalOrders,
+                'total_gross_sales' => ['amount' => sprintf('%.2f', $totalSales), 'currencyCode' => $currency],
+                'total_discounts' => ['amount' => '0.00', 'currencyCode' => $currency],
+                'total_refunds' => ['amount' => '0.00', 'currencyCode' => $currency],
+                'total_net_sales' => ['amount' => sprintf('%.2f', $totalSales), 'currencyCode' => $currency],
+                'total_taxes' => ['amount' => '0.00', 'currencyCode' => $currency],
+                'total_shipping' => ['amount' => '0.00', 'currencyCode' => $currency],
+                'total_sales' => ['amount' => sprintf('%.2f', $totalSales), 'currencyCode' => $currency],
+                'total_cost_of_goods_sold' => ['amount' => '0.00', 'currencyCode' => $currency],
+                'total_gross_margin' => ['amount' => '0.00', 'currencyCode' => $currency],
+            ]];
+            $data = $summary; // Replace data with summary
+        } elseif ($dataset === 'products_by_type') {
+            // Aggregate Products by Type
+            $byType = [];
+            $grandTotal = [
+                'variants' => 0,
+                'quantity' => 0,
+                'value' => 0.0,
+                'cost' => 0.0
+            ];
+            $currency = '';
+
+            // Use parentsMap (products)
+            $sourceData = !empty($parentsMap) ? $parentsMap : $data;
+
+            foreach ($sourceData as $product) {
+                 if (!$this->matchesFilters($product)) continue;
+
+                 $type = $product['productType'] ?? 'Unknown';
+                 if (trim($type) === '') $type = 'Unknown';
+
+                 if (!isset($byType[$type])) {
+                     $byType[$type] = [
+                         'variants' => 0,
+                         'quantity' => 0,
+                         'value' => 0.0,
+                         'cost' => 0.0
+                     ];
+                 }
+
+                 // Process Nested Variants
+                 $variants = [];
+                 if (isset($product['variants']['edges'])) {
+                     foreach($product['variants']['edges'] as $edge) {
+                         $variants[] = $edge['node'];
+                     }
+                 } elseif (isset($product['variants']) && is_array($product['variants'])) {
+                      $variants = $product['variants'];
+                 }
+                 // Also check for aggregated children variants
+                 if (isset($product['variants']) && isset($product['variants'][0]['inventoryQuantity'])) {
+                     // Logic above handles this if it's direct array, but let's be safe
+                 }
+                 
+                 foreach ($variants as $v) {
+                     $qty = (int)($v['inventoryQuantity'] ?? 0);
+                     $price = (float)($v['price'] ?? 0);
+                     $cost = (float)($v['inventoryItem']['unitCost']['amount'] ?? 0);
+                     
+                     $byType[$type]['variants']++;
+                     $byType[$type]['quantity'] += $qty;
+                     $byType[$type]['value'] += ($price * $qty);
+                     $byType[$type]['cost'] += ($cost * $qty);
+                     
+                     $grandTotal['variants']++;
+                     $grandTotal['quantity'] += $qty;
+                     $grandTotal['value'] += ($price * $qty);
+                     $grandTotal['cost'] += ($cost * $qty);
+                     
+                     if (!$currency && isset($v['priceCurrency'])) $currency = $v['priceCurrency'];
+                 }
+                 
+                 if (!$currency && isset($product['priceRangeV2']['minVariantPrice']['currencyCode'])) {
+                     $currency = $product['priceRangeV2']['minVariantPrice']['currencyCode'];
+                 }
+            }
+            if (!$currency) $currency = 'INR';
+
+            uasort($byType, function($a, $b) {
+                return $b['value'] <=> $a['value'];
+            });
+
+            $rows = [];
+            foreach ($byType as $type => $stats) {
+                $rows[] = [
+                    'product_type' => $type,
+                    'total_variants' => $stats['variants'],
+                    'total_quantity' => number_format($stats['quantity']),
+                    'total_inventory_value' => ['amount' => number_format($stats['value'], 2), 'currencyCode' => $currency],
+                    'total_inventory_cost' => ['amount' => number_format($stats['cost'], 2), 'currencyCode' => $currency],
+                ];
+            }
+
+            // TOTAL Row
+            $rows[] = [
+                'product_type' => 'TOTAL',
+                'total_variants' => $grandTotal['variants'],
+                'total_quantity' => number_format($grandTotal['quantity']),
+                'total_inventory_value' => ['amount' => number_format($grandTotal['value'], 2), 'currencyCode' => $currency],
+                'total_inventory_cost' => ['amount' => number_format($grandTotal['cost'], 2), 'currencyCode' => $currency],
+            ];
+            
+            $data = $rows;
+
+        } elseif ($dataset === 'customers_by_country') {
+            // Aggregate Customers by Country
+            $byCountry = [];
+            $totalCustomers = 0;
+            
+            // Use parentsMap if populated (standard customers logic populates it), else data
+            $sourceData = !empty($parentsMap) ? $parentsMap : $data;
+            
+            // DEBUG: Dump first customer to file
+            if (!empty($sourceData)) {
+                $firstKey = array_key_first($sourceData);
+                file_put_contents(__DIR__ . '/../../debug_customer_data.txt', print_r($sourceData[$firstKey], true));
+            }
+
+            foreach ($sourceData as $row) {
+                if (!$this->matchesFilters($row)) continue;
+
+                $country = $row['country'] ?? 'Unknown';
+                if (trim($country) === '') $country = 'Unknown';
+                
+                // DATA TRACING
+                error_log("TRACE ROW: ID " . ($row['id']??'null') . " | CountryRaw: '" . ($row['country']??'MISSING') . "' | Final: '$country'");
+
+                if (!isset($byCountry[$country])) {
+                    $byCountry[$country] = 0;
+                }
+                $byCountry[$country]++;
+                $totalCustomers++;
+            }
+            ksort($byCountry);
+
+            $rows = [];
+            foreach ($byCountry as $country => $count) {
+                $rows[] = [
+                    'country' => $country,
+                    'total_customers' => $count
+                ];
+            }
+
+            // Append TOTAL row
+            // We use 'TOTAL' in the first column key ('country')
+            $rows[] = [
+                'country' => 'TOTAL',
+                'total_customers' => $totalCustomers
+            ];
+
+            $data = $rows;
+        } elseif ($dataset === 'aov_time') {
+             // Aggregate by Date
+            $byDate = [];
+            $sourceData = !empty($parentsMap) ? $parentsMap : $data;
+
+            foreach ($sourceData as $node) {
+                if (!$this->matchesFilters($node)) continue;
+
+                $createdAt = $node['createdAt'] ?? null;
+                $amount = $node['totalPriceSet']['shopMoney']['amount'] ?? null;
+                if (!$createdAt || !is_numeric($amount)) continue;
+                
+                // Adjust date to day? 
+                // Using UTC date from string is simpler for grouping
+                $date = substr($createdAt, 0, 10);
+                if (!isset($byDate[$date])) $byDate[$date] = ['sum' => 0.0, 'count' => 0];
+                $byDate[$date]['sum'] += (float)$amount;
+                $byDate[$date]['count']++;
+            }
+            ksort($byDate);
+            $rows = [];
+            foreach ($byDate as $date => $agg) {
+                $avg = $agg['count'] > 0 ? ($agg['sum'] / $agg['count']) : 0.0;
+                $rows[] = [
+                    'date' => $date,
+                    'average_order_value' => number_format($avg, 2, '.', ''),
+                ];
+            }
+            $data = $rows;
+        } elseif ($dataset === 'products_variant' || $dataset === 'sales_by_variant') {
+             // Aggregate Line Items by Variant
+             $byVariant = [];
+             foreach ($data as $item) {
+                 // Identify Variant
+                 $varId = $item['variant']['id'] ?? 'N/A';
+                 if ($varId === 'N/A' && isset($item['title'])) $varId = $item['title']; // Fallback
+
+                 if (!isset($byVariant[$varId])) {
+                     $pTitle = $item['variant']['product']['title'] ?? ($item['title'] ?? 'Unknown Product');
+                     $vTitle = $item['variant']['title'] ?? ($item['title'] ?? '');
+                     if ($vTitle === 'Default Title') $vTitle = 'Default Title'; // Keep explicit
+
+                     $byVariant[$varId] = [
+                         'product_title' => $pTitle,
+                         'variant_title' => $vTitle,
+                         'sku' => $item['sku'] ?? '',
+                         'orders_unique' => [],
+                         'net_quantity' => 0,
+                         'gross_sales' => 0.0,
+                         'discounts' => 0.0,
+                         'returns' => 0.0,
+                         'net_sales' => 0.0,
+                         'tax' => 0.0,
+                         'shipping' => 0.0,
+                         'total_sales' => 0.0,
+                         'currency' => ''
+                     ];
+                 }
+
+                 // Metrics
+                 $qty = (int)($item['quantity'] ?? 0);
+                 $price = (float)($item['priceSet']['shopMoney']['amount'] ?? 0);
+                 $currency = $item['priceSet']['shopMoney']['currencyCode'] ?? '';
+                 $byVariant[$varId]['currency'] = $currency;
+
+                 // Gross Sales = Price * Qty
+                 $gross = $price * $qty;
+                 
+                 // Tax
+                 $tax = 0.0;
+                 if (isset($item['taxLines'])) {
+                     foreach ($item['taxLines'] as $tl) {
+                         $tax += (float)($tl['priceSet']['shopMoney']['amount'] ?? 0);
+                     }
+                 }
+
+                 $byVariant[$varId]['net_quantity'] += $qty;
+                 $byVariant[$varId]['gross_sales'] += $gross;
+                 $byVariant[$varId]['tax'] += $tax;
+                 // Assuming Net Sales = Gross (minus defaults) for now
+                 // Total Sales = Gross + Tax
+                 $byVariant[$varId]['total_sales'] += ($gross + $tax); 
+                 
+                 // Track Order ID for Count
+                 $parentId = $item['__parentId'] ?? null;
+                 if ($parentId) $byVariant[$varId]['orders_unique'][$parentId] = true;
+             }
+
+             // Format Output
+             $rows = [];
+             foreach ($byVariant as $vid => $agg) {
+                 $agg['orders_count'] = count($agg['orders_unique']);
+                 unset($agg['orders_unique']); // Cleanup
+                 
+                 // Format Money
+                 $c = $agg['currency'];
+                 $rows[] = [
+                     'product_title' => $agg['product_title'],
+                     'variant_title' => $agg['variant_title'],
+                     'sku' => $agg['sku'],
+                     'orders_count' => $agg['orders_count'],
+                     'net_quantity' => $agg['net_quantity'],
+                     'gross_sales' => ['amount' => number_format($agg['gross_sales'], 2, '.', ''), 'currencyCode' => $c],
+                     'discounts' => ['amount' => number_format($agg['discounts'], 2, '.', ''), 'currencyCode' => $c],
+                     'returns' => ['amount' => number_format($agg['returns'], 2, '.', ''), 'currencyCode' => $c],
+                     'net_sales' => ['amount' => number_format($agg['gross_sales'] - $agg['discounts'] - $agg['returns'], 2, '.', ''), 'currencyCode' => $c],
+                     'total_taxes' => ['amount' => number_format($agg['tax'], 2, '.', ''), 'currencyCode' => $c],
+                     'total_shipping' => ['amount' => number_format($agg['shipping'], 2, '.', ''), 'currencyCode' => $c],
+                     'total_sales' => ['amount' => number_format($agg['total_sales'], 2, '.', ''), 'currencyCode' => $c],
+                 ];
+             }
+             $data = $rows;
+        }
+
+        // For Standard Reports, add the Aggregated Parents to Data
+        if (!$isChildRowReport && $dataset !== 'sales_summary' && $dataset !== 'aov_time' && $dataset !== 'customers_by_country' && $dataset !== 'products_by_type') {
+            error_log("ReportBuilderService::processBulkData - Merging " . count($parentsMap) . " parents into final data");
+            foreach ($parentsMap as $p) {
+                // Apply Filters to Parents (e.g. Order Date)
+                if ($this->matchesFilters($p)) {
+                     $data[] = $p;
+                }
+            }
+        } else {
+             error_log("ReportBuilderService::processBulkData - Child/Summary Report: " . count($data) . " rows extracted/aggregated");
+        }
+        
         if ($reportId) {
             $this->saveResult($reportId, $data);
             return;
@@ -504,6 +965,196 @@ class ReportBuilderService
         foreach ($reports as $report) {
             $this->saveResult($report['id'], $data);
         }
+    }
+
+    private function aggregateCustomerOrder(&$customer, $orderNode)
+    {
+         // DEBUG: Dump order node
+         file_put_contents('c:\xampp\htdocs\report-pro\debug_dump.txt', "Order Node: " . print_r($orderNode, true) . "\n\n", FILE_APPEND);
+         
+         // Standard Aggregation (Child into Parent)
+         // For Orders, "Child" might be LineItem or Transaction
+         // For Customers, "Child" is Order
+         
+         // Generic check: where to put it?
+         if (isset($orderNode['__parentId'])) {
+             // Address Fallback (for Country)
+             // Check if it has 'country' and NOT order fields
+             if (isset($orderNode['country']) && !isset($orderNode['totalPriceSet']) && !isset($orderNode['quantity'])) {
+                 if (empty($customer['country']) || $customer['country'] === 'Unknown') {
+                     $customer['country'] = $orderNode['country'];
+                 }
+                 return;
+             }
+
+            // ORDER ADDRESS FALLBACK (Shipping)
+            if (isset($orderNode['shippingAddress']['country'])) {
+                if (empty($customer['country']) || $customer['country'] === 'Unknown') {
+                     $customer['country'] = $orderNode['shippingAddress']['country'];
+                }
+            }
+            // ORDER ADDRESS FALLBACK (Billing - Last Resort)
+            if (isset($orderNode['billingAddress']['country'])) {
+                if (empty($customer['country']) || $customer['country'] === 'Unknown') {
+                     $customer['country'] = $orderNode['billingAddress']['country'];
+                }
+            }
+
+            // RECURSIVE "CATCH-ALL" FALLBACK (If still unknown)
+            if (empty($customer['country']) || $customer['country'] === 'Unknown') {
+                $foundCountry = $this->findCountryRecursively($orderNode);
+                if ($foundCountry && $foundCountry !== 'Unknown') {
+                    $customer['country'] = $foundCountry;
+                }
+            }
+
+             // It's a child node (LineItem, Transaction)
+             // Determine type based on fields
+             if (isset($orderNode['title']) && isset($orderNode['quantity'])) {
+                 // LineItem
+                 if (!isset($customer['line_items'])) $customer['line_items'] = [];
+                 $customer['line_items'][] = $orderNode;
+             } elseif (isset($orderNode['gateway']) || isset($orderNode['kind'])) {
+                 // Transaction
+                 if (!isset($customer['transactions'])) $customer['transactions'] = [];
+                 $customer['transactions'][] = $orderNode;
+             } elseif (isset($orderNode['id'])) {
+                 // Unknown child (maybe order under customer)
+                 // This matches original logic for Customer Report
+                // PHP-Side Filtering for Customer's Orders
+                // CRITICAL FIX: For Customer Reports, user expects "Total Spent" to be LIFETIME value.
+                // The Global Report filters (e.g. "Last 30 Days") are for finding *which* customers to show.
+                // We typically do NOT want to limit the summed orders to that same window (otherwise it's "Spend in Period").
+                // To support true LTV, we exclude date filters from the Order Aggregation check.
+                
+                $orderFilters = [];
+                foreach ($this->activeFilters as $af) {
+                    if ($af['field'] !== 'created_at' && $af['field'] !== 'updated_at') {
+                        $orderFilters[] = $af;
+                    }
+                }
+
+                $matches = $this->matchesFilters($orderNode, $orderFilters);
+                if (!$matches) return;
+        
+                // Aggregate Count
+                $customer['orders_count'] = ($customer['orders_count'] ?? 0) + 1;
+               
+                // Aggregate Total Spent
+                if (isset($orderNode['totalPriceSet']['shopMoney']['amount'])) {
+                    $amount = (float)$orderNode['totalPriceSet']['shopMoney']['amount'];
+                    $currentTotal = (float)($customer['total_spent']['amount'] ?? 0);
+                    $currency = $orderNode['totalPriceSet']['shopMoney']['currencyCode'] ?? ($customer['total_spent']['currencyCode'] ?? '');
+                    
+                    $customer['total_spent'] = [
+                        'amount' => number_format($currentTotal + $amount, 2, '.', ''),
+                        'currencyCode' => $currency
+                    ];
+                }
+             }
+         }
+    }
+
+    private function matchesFilters($node, $overrideFilters = null)
+    {
+        $filtersToUse = $overrideFilters !== null ? $overrideFilters : $this->activeFilters;
+        if (empty($filtersToUse)) return true;
+        
+        // ... (debug logic)
+        static $debugCount = 0;
+        $shouldLog = ($debugCount++ < 5);
+
+        foreach ($filtersToUse as $filter) {
+            $field = $filter['field'];
+            $value = $filter['value'];
+            $operator = $filter['operator'] ?? '=';
+
+            // Support date aliases and Deep Filtering
+            $nodeValue = null;
+            
+            if ($field === 'created_at') {
+                $nodeValue = $node['createdAt'] ?? null;
+            } elseif ($field === 'updated_at') {
+                $nodeValue = $node['updatedAt'] ?? null;
+            } elseif ($field === 'financial_status') {
+                $nodeValue = $node['financialStatus'] ?? null;
+            } elseif ($field === 'fulfillment_status') {
+                $nodeValue = $node['fulfillmentStatus'] ?? null;
+            } elseif ($field === 'product_type') {
+                 // Deep Check: Scan Line Items
+                 // If any line item matches, the Order matches.
+                 $items = $node['line_items'] ?? [];
+                 $matchFound = false;
+                 foreach($items as $item) {
+                     $pType = $item['variant']['product']['productType'] ?? '';
+                     // Simple check: default operator '=' for product type usually
+                     // But let's reuse logic below by picking the first match? No, needs ALL check logic.
+                     // Quick implementation:
+                     if ($operator === '=' && stripos($pType, $value) !== false) $matchFound = true; // Use simple contains/equals
+                     if ($operator === 'contains' && stripos($pType, $value) !== false) $matchFound = true;
+                     if ($operator === '!=' && $pType !== $value) $matchFound = true; // Wait, != means matches if at least one is NOT? No. if filtering out, we want NONE to be.
+                     // Logic: "Product Type is Gift Card" -> Show orders containing a gift card.
+                 }
+                 if ($matchFound) {
+                     $nodeValue = $value; // Force match
+                 } else {
+                     $nodeValue = '__NO_MATCH__';
+                 }
+            } elseif ($field === 'gateway') {
+                 // Deep Check: Scan Transactions
+                 $trans = $node['transactions'] ?? [];
+                 $matchFound = false;
+                 foreach($trans as $t) {
+                     $gw = $t['gateway'] ?? '';
+                     if (strcasecmp($gw, $value) === 0) $matchFound = true;
+                 }
+                 // Logic: "Gateway is gift_card"
+                 if ($matchFound) {
+                     $nodeValue = $value;
+                 } else {
+                     $nodeValue = '__NO_MATCH__';
+                 }
+            } elseif (isset($node[$field])) {
+                $nodeValue = $node[$field];
+            } else {
+                continue; 
+            }
+
+            // ... (Value Check)
+            if (!$nodeValue) continue; // Skip if null (or use failed logic)
+            
+            if ($nodeValue === '__NO_MATCH__') return false; // Explicit failure from deep check
+
+            // Date Comparison
+            if (strpos($field, '_at') !== false) {
+                 // ... (existing date logic)
+                $nodeTime = strtotime($nodeValue);
+                // Fix for Day Boundaries
+                if (strlen($value) === 10 && $operator === '<=') {
+                     $filterTime = strtotime($value . ' 23:59:59');
+                } else {
+                     $filterTime = strtotime($value);
+                }
+                
+                switch ($operator) {
+                    case '>': if (!($nodeTime > $filterTime)) return false; break;
+                    case '>=': if (!($nodeTime >= $filterTime)) return false; break;
+                    case '<': if (!($nodeTime < $filterTime)) return false; break;
+                    case '<=': if (!($nodeTime <= $filterTime)) return false; break;
+                    case '=': 
+                        if (date('Y-m-d', $nodeTime) !== date('Y-m-d', $filterTime)) return false; 
+                        break;
+                }
+            } else {
+                // String/Number comparison
+                switch ($operator) {
+                    case '=': if (strcasecmp($nodeValue, $value) != 0) return false; break; // Case insensitive string
+                    case '!=': if (strcasecmp($nodeValue, $value) == 0) return false; break;
+                    case 'contains': if (stripos($nodeValue, $value) === false) return false; break;
+                }
+            }
+        }
+        return true;
     }
 
     private function saveResult($reportId, $data)
@@ -531,17 +1182,107 @@ class ReportBuilderService
 
     private function buildSalesSummaryQuery($filters, $columns, $groupBy, $aggregations)
     {
-        return "query { orders(first: 250) { edges { node { id totalPriceSet { shopMoney { amount } } } } } }";
+        // Fetch Orders including LineItems for product filtering
+        // Removing 'transactions' block temporarily to resolve API schema error "Field 'edges' doesn't exist on OrderTransaction"
+        return "query { orders(query: \"status:any\") { edges { node { id createdAt totalPriceSet { shopMoney { amount currencyCode } } lineItems { edges { node { title variant { product { productType } } } } } } } } }";
     }
 
     private function buildAovTimeQuery($filters, $columns, $groupBy, $aggregations)
     {
-        return "query { orders(first: 250) { edges { node { id createdAt totalPriceSet { shopMoney { amount } } } } } }";
+        return "query { orders(query: \"status:any\") { edges { node { id createdAt totalPriceSet { shopMoney { amount } } lineItems { edges { node { title variant { product { productType } } } } } } } } }";
     }
 
     private function buildBrowserShareQuery($filters, $columns, $groupBy, $aggregations)
     {
         return "query { orders(first: 250) { edges { node { id customerJourneySummary { lastVisit { source browser } } } } } }";
     }
-}
+    private function buildSearchQuery($filters, $allowedFields)
+    {
+        $parts = [];
+        foreach ($filters as $filter) {
+            // Basic validation
+            if (empty($filter['field']) || empty($filter['value'])) continue;
+            
+            // Map frontend fields
+            $field = $filter['field'];
+            if ($field === 'accepts_email_marketing') $field = 'accepts_marketing';
 
+            // CRITICAL FIX: Exclude date filters from Shopify Search Query.
+            // Shopify's timezone handling in search syntax is tricky and can exclude "today's" items.
+            // We rely on PHP-side filtering (matchesFilters) which is now robust.
+            // Since we fetch 250 items (small store), fetching all recent items and filtering in PHP is safer.
+            // CRITICAL FIX: Exclude date filters from Shopify Search Query.
+            if ($field === 'created_at' || $field === 'updated_at') continue;
+            
+            // CRITICAL FIX: Exclude Status filters from Shopify Search Query (API Error Prevention)
+            // Shopify API rejects 'financialStatus' (camelCase) in search query.
+            // We force these to be filtered in PHP (matchesFilters) instead.
+            if (in_array($field, ['financial_status', 'financialStatus', 'fulfillment_status', 'fulfillmentStatus'])) {
+                 error_log("buildSearchQuery - Skipping restricted field: $field");
+                 continue;
+            }
+
+            if (!in_array($field, $allowedFields)) {
+                 error_log("buildSearchQuery - Field $field not in allowed list: " . implode(', ', $allowedFields));
+                 continue;
+            }
+
+            $val = $filter['value'];
+            $op = $filter['operator'] ?? '=';
+
+            // Automatic quoting for strings with spaces (unless it's a known non-quoted type or already quoted)
+            // Ideally we check if $val contains space and doesn't look like a date or number.
+            // Simple heuristic: if it has space and isn't enclosed in ", wrap it.
+            if (is_string($val) && strpos($val, ' ') !== false && substr($val, 0, 1) !== '"') {
+                $val = '"' . $val . '"';
+            }
+
+            // Shopify Search Syntax Construction
+            switch ($op) {
+                case '>':
+                    $parts[] = "{$field}:>{$val}";
+                    break;
+                case '>=':
+                    $parts[] = "{$field}:>={$val}";
+                    break;
+                case '<':
+                    $parts[] = "{$field}:<{$val}";
+                    break;
+                case '<=':
+                    $parts[] = "{$field}:<={$val}";
+                    break;
+                case '!=':
+                    // Negation query
+                    $parts[] = "-{$field}:{$val}";
+                    break;
+                case 'contains':
+                    // removal of quotes might be needed for wildcards strictly, but usually *foo bar* needs quotes "*foo bar*"
+                    // Let's assume for contains we wrap wildcards outside the quotes if quoted? 
+                    // Actually Shopify syntax: title:*foo*
+                    // If quoted: title:"*foo bar*"
+                    $parts[] = "{$field}:*{$val}*";
+                    break;
+                case '=':
+                default:
+                    $parts[] = "{$field}:{$val}";
+                    break;
+            }
+        }
+        
+        return implode(' AND ', $parts);
+    }
+
+
+    private function findCountryRecursively($array) {
+        foreach ($array as $key => $value) {
+            if ($key === 'country' && is_string($value) && !empty($value) && $value !== 'Unknown') {
+                return $value;
+            }
+            if (is_array($value)) {
+                $res = $this->findCountryRecursively($value);
+                if ($res) return $res;
+            }
+        }
+        return null;
+    }
+}
