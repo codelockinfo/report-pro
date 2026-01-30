@@ -33,6 +33,10 @@ class ReportBuilderService
                 return $this->buildOrdersQuery($filters, $columns, $groupBy, $aggregations);
             case 'products':
             case 'products_by_type':
+            case 'products_vendor':
+            case 'inventory_by_product':
+            case 'inventory_by_vendor':
+            case 'inventory_by_sku':
                 return $this->buildProductsQuery($filters, $columns, $groupBy, $aggregations);
             case 'customers':
             case 'customers_by_country':
@@ -169,6 +173,12 @@ class ReportBuilderService
                 case 'price':
                     $fields[] = 'priceRangeV2 { minVariantPrice { amount currencyCode } }';
                     break;
+                case 'image':
+                    $fields[] = 'featuredImage { url }';
+                    break;
+                case 'product_title':
+                    $fields[] = 'title';
+                    break;
             }
         }
 
@@ -179,12 +189,19 @@ class ReportBuilderService
         }
 
         if ($needsVariants) {
-             $fields[] = 'variants(first: 200) { edges { node { id price inventoryQuantity inventoryItem { unitCost { amount currencyCode } } } } }';
+             $fields[] = 'variants(first: 200) { edges { node { id title sku price inventoryQuantity image { url } inventoryItem { unitCost { amount currencyCode } } } } }';
              if (!in_array('id', $fields) && !in_array('id: id', $fields)) {
                  array_unshift($fields, 'id');
              }
         }
         
+        // Force fetch fields required for filtering and mapping, even if not in columns
+        if (!in_array('createdAt', $fields)) $fields[] = 'createdAt';
+        if (!in_array('updatedAt', $fields)) $fields[] = 'updatedAt';
+        if (!in_array('status', $fields)) $fields[] = 'status';
+        if (!in_array('vendor', $fields)) $fields[] = 'vendor';
+        if (!in_array('productType', $fields)) $fields[] = 'productType';
+
         if (empty($fields)) {
             $fields[] = 'id';
         }
@@ -338,6 +355,9 @@ class ReportBuilderService
                     break;
                 case 'updated_at':
                     $fields[] = 'updatedAt';
+                    break;
+                case 'image':
+                    $fields[] = 'inventoryItem { variant { image { url } } }';
                     break;
             }
         }
@@ -539,7 +559,7 @@ class ReportBuilderService
         $orphanedChildren = []; // parentId => [child1, child2, ...]
         
         // Datasets that return Child Rows (flattened) instead of Aggregated Parents
-        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant']); 
+        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku']); 
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -563,13 +583,55 @@ class ReportBuilderService
                          if(!isset($decoded['createdAt'])) $decoded['createdAt'] = $parentContext['createdAt'];
                     }
 
+                    // Mapping for Inventory by SKU (Flattening Variants)
+                    if ($dataset === 'inventory_by_sku') {
+                        $decoded['product_title'] = $parentContext['title'] ?? 'Unknown Product';
+                        $decoded['variant_title'] = $decoded['title'] ?? ''; 
+                        $decoded['product_type'] = $parentContext['productType'] ?? '';
+                        $decoded['vendor'] = $parentContext['vendor'] ?? '';
+                        $decoded['status'] = $parentContext['status'] ?? '';
+                        $decoded['image'] = $decoded['image']['url'] ?? ($parentContext['featuredImage']['url'] ?? '');
+                        
+                        $qty = (int)($decoded['inventoryQuantity'] ?? 0);
+                        $price = (float)($decoded['price'] ?? 0);
+                        $costStats = $decoded['inventoryItem']['unitCost'] ?? [];
+                        $cost = (float)($costStats['amount'] ?? 0);
+                        $currency = $costStats['currencyCode'] ?? 'INR'; 
+                        
+                        $decoded['total_quantity'] = $qty;
+                        $decoded['total_inventory_value'] = [
+                            'amount' => number_format($qty * $price, 2, '.', ''),
+                            'currencyCode' => $currency
+                        ];
+                        $decoded['total_inventory_cost'] = [
+                            'amount' => number_format($qty * $cost, 2, '.', ''),
+                            'currencyCode' => $currency
+                        ];
+                        $decoded['total_variants'] = 1; // It's a single SKU
+                    }
+
                     if ($this->matchesFilters($decoded)) {
                         $data[] = $decoded;
                     }
                 } else {
-                    // AGGREGATION STRATEGY (Customers, Orders with aggregations):
+                    // AGGREGATION STRATEGY:
                     if (isset($parentsMap[$parentId])) {
-                       $this->aggregateCustomerOrder($parentsMap[$parentId], $decoded);
+                        if ($dataset === 'customers' || $dataset === 'customers_by_country') {
+                             $this->aggregateCustomerOrder($parentsMap[$parentId], $decoded);
+                        } elseif (strpos($dataset, 'product') !== false || strpos($dataset, 'inventory') !== false) {
+                             // Aggregate Variants/Images into Product
+                             // If it looks like a variant (has inventoryQuantity or price or sku)
+                             if (isset($decoded['inventoryQuantity']) || isset($decoded['price']) || isset($decoded['sku'])) {
+                                 if (!isset($parentsMap[$parentId]['variants'])) {
+                                     $parentsMap[$parentId]['variants'] = [];
+                                 }
+                                 $parentsMap[$parentId]['variants'][] = $decoded;
+                             }
+                             // If it looks like an image (has url)
+                             if (isset($decoded['url'])) {
+                                  // featuredImage might come as child if unconnected? usually embedded.
+                             }
+                        }
                     } else {
                         if (!isset($orphanedChildren[$parentId])) {
                             $orphanedChildren[$parentId] = [];
@@ -622,6 +684,17 @@ class ReportBuilderService
                         $decoded['country'] = $decoded['shippingAddress']['country'];
                     }
 
+                    if (!isset($decoded['country']) && isset($decoded['shippingAddress']['country'])) {
+                        $decoded['country'] = $decoded['shippingAddress']['country'];
+                    }
+
+                    if (isset($decoded['featuredImage']['url'])) {
+                        $decoded['image'] = $decoded['featuredImage']['url'];
+                    }
+                    if (isset($decoded['inventoryItem']['variant']['image']['url'])) {
+                        $decoded['image'] = $decoded['inventoryItem']['variant']['image']['url'];
+                    }
+
                     if ($id) {
                         // Init stats
                         if (!isset($decoded['orders_count'])) $decoded['orders_count'] = 0;
@@ -632,7 +705,17 @@ class ReportBuilderService
                         // Process orphans
                         if (isset($orphanedChildren[$id])) {
                             foreach ($orphanedChildren[$id] as $child) {
-                                $this->aggregateCustomerOrder($parentsMap[$id], $child);
+                                if ($dataset === 'customers' || $dataset === 'customers_by_country') {
+                                    $this->aggregateCustomerOrder($parentsMap[$id], $child);
+                                } elseif (strpos($dataset, 'product') !== false || strpos($dataset, 'inventory') !== false) {
+                                     // Aggregate Variants/Images into Product
+                                     if (isset($child['inventoryQuantity']) || isset($child['price']) || isset($child['sku'])) {
+                                         if (!isset($parentsMap[$id]['variants'])) {
+                                             $parentsMap[$id]['variants'] = [];
+                                         }
+                                         $parentsMap[$id]['variants'][] = $child;
+                                     }
+                                }
                             }
                             unset($orphanedChildren[$id]);
                         }
@@ -707,11 +790,20 @@ class ReportBuilderService
                          'variants' => 0,
                          'quantity' => 0,
                          'value' => 0.0,
-                         'cost' => 0.0
+                         'cost' => 0.0,
+                         'image' => null
                      ];
                  }
 
-                 // Process Nested Variants
+                 // Capture first image found for this type
+                 if (!$byType[$type]['image'] && isset($product['image'])) {
+                     $byType[$type]['image'] = $product['image'];
+                 }
+                 if (!$byType[$type]['image'] && isset($product['featuredImage']['url'])) {
+                     $byType[$type]['image'] = $product['featuredImage']['url'];
+                 }
+
+                 // Process Nested Variants (Handle both bulk JSONL and direct GraphQL structure)
                  $variants = [];
                  if (isset($product['variants']['edges'])) {
                      foreach($product['variants']['edges'] as $edge) {
@@ -720,9 +812,13 @@ class ReportBuilderService
                  } elseif (isset($product['variants']) && is_array($product['variants'])) {
                       $variants = $product['variants'];
                  }
-                 // Also check for aggregated children variants
-                 if (isset($product['variants']) && isset($product['variants'][0]['inventoryQuantity'])) {
-                     // Logic above handles this if it's direct array, but let's be safe
+                 
+                 // If no variants found, check if mapped via parentsMap logic
+                 if (empty($variants) && isset($product['variants_count'])) {
+                     // Check if parentsMap has variants attached via orphan reconciliation
+                     if (isset($product['variants']) && is_array($product['variants'])) {
+                          // Already handled above
+                     }
                  }
                  
                  foreach ($variants as $v) {
@@ -757,24 +853,206 @@ class ReportBuilderService
             foreach ($byType as $type => $stats) {
                 $rows[] = [
                     'product_type' => $type,
+                    'image' => $stats['image'],
                     'total_variants' => $stats['variants'],
                     'total_quantity' => number_format($stats['quantity']),
-                    'total_inventory_value' => ['amount' => number_format($stats['value'], 2), 'currencyCode' => $currency],
-                    'total_inventory_cost' => ['amount' => number_format($stats['cost'], 2), 'currencyCode' => $currency],
+                    'total_inventory_value' => ['amount' => number_format($stats['value'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_inventory_cost' => ['amount' => number_format($stats['cost'], 2, '.', ''), 'currencyCode' => $currency],
                 ];
             }
 
             // TOTAL Row
             $rows[] = [
                 'product_type' => 'TOTAL',
+                'image' => '',
                 'total_variants' => $grandTotal['variants'],
                 'total_quantity' => number_format($grandTotal['quantity']),
-                'total_inventory_value' => ['amount' => number_format($grandTotal['value'], 2), 'currencyCode' => $currency],
-                'total_inventory_cost' => ['amount' => number_format($grandTotal['cost'], 2), 'currencyCode' => $currency],
+                'total_inventory_value' => ['amount' => number_format($grandTotal['value'], 2, '.', ''), 'currencyCode' => $currency],
+                'total_inventory_cost' => ['amount' => number_format($grandTotal['cost'], 2, '.', ''), 'currencyCode' => $currency],
             ];
             
             $data = $rows;
 
+        } elseif ($dataset === 'products_vendor') {
+            // Aggregate Products by Vendor
+            $byVendor = [];
+            $grandTotal = [
+                'products' => 0,
+                'variants' => 0,
+                'quantity' => 0,
+                'value' => 0.0,
+                'cost' => 0.0
+            ];
+            $currency = '';
+
+            // Use parentsMap (products)
+            $sourceData = !empty($parentsMap) ? $parentsMap : $data;
+
+            foreach ($sourceData as $product) {
+                 if (!$this->matchesFilters($product)) continue;
+
+                 $vendor = $product['vendor'] ?? 'Unknown';
+                 if (trim($vendor) === '') $vendor = 'Unknown';
+
+                 if (!isset($byVendor[$vendor])) {
+                     $byVendor[$vendor] = [
+                         'products' => 0,
+                         'variants' => 0,
+                         'quantity' => 0,
+                         'value' => 0.0,
+                         'cost' => 0.0,
+                         'image' => null
+                     ];
+                 }
+
+                 // Capture first image found for this vendor
+                 if (!$byVendor[$vendor]['image'] && isset($product['image'])) {
+                     $byVendor[$vendor]['image'] = $product['image'];
+                 }
+
+                 $byVendor[$vendor]['products']++;
+                 $grandTotal['products']++;
+
+                 // Process Nested Variants
+                 $variants = [];
+                 if (isset($product['variants']['edges'])) {
+                     foreach($product['variants']['edges'] as $edge) {
+                         $variants[] = $edge['node'];
+                     }
+                 } elseif (isset($product['variants']) && is_array($product['variants'])) {
+                      $variants = $product['variants'];
+                 }
+                 
+                 foreach ($variants as $v) {
+                     $qty = (int)($v['inventoryQuantity'] ?? 0);
+                     $price = (float)($v['price'] ?? 0);
+                     $cost = (float)($v['inventoryItem']['unitCost']['amount'] ?? 0);
+                     
+                     $byVendor[$vendor]['variants']++;
+                     $byVendor[$vendor]['quantity'] += $qty;
+                     $byVendor[$vendor]['value'] += ($price * $qty);
+                     $byVendor[$vendor]['cost'] += ($cost * $qty);
+                     
+                     $grandTotal['variants']++;
+                     $grandTotal['quantity'] += $qty;
+                     $grandTotal['value'] += ($price * $qty);
+                     $grandTotal['cost'] += ($cost * $qty);
+                     
+                     if (!$currency && isset($v['priceCurrency'])) $currency = $v['priceCurrency'];
+                 }
+                 
+                 if (!$currency && isset($product['priceRangeV2']['minVariantPrice']['currencyCode'])) {
+                     $currency = $product['priceRangeV2']['minVariantPrice']['currencyCode'];
+                 }
+            }
+            if (!$currency) $currency = 'INR';
+
+            uasort($byVendor, function($a, $b) {
+                return $b['quantity'] <=> $a['quantity']; 
+            });
+
+            $rows = [];
+            foreach ($byVendor as $vendor => $stats) {
+                $rows[] = [
+                    'vendor' => $vendor,
+                    'image' => $stats['image'],
+                    'total_products' => $stats['products'],
+                    'total_variants' => $stats['variants'],
+                    'total_quantity' => number_format($stats['quantity']),
+                    'total_inventory_value' => ['amount' => number_format($stats['value'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_inventory_cost' => ['amount' => number_format($stats['cost'], 2, '.', ''), 'currencyCode' => $currency],
+                ];
+            }
+
+            // TOTAL Row
+            $rows[] = [
+                'vendor' => 'TOTAL',
+                'image' => '',
+                'total_products' => $grandTotal['products'],
+                'total_variants' => $grandTotal['variants'],
+                'total_quantity' => number_format($grandTotal['quantity']),
+                'total_inventory_value' => ['amount' => number_format($grandTotal['value'], 2, '.', ''), 'currencyCode' => $currency],
+                'total_inventory_cost' => ['amount' => number_format($grandTotal['cost'], 2, '.', ''), 'currencyCode' => $currency],
+            ];
+            
+            $data = $rows;
+            
+            $data = $rows;
+            
+        } elseif ($dataset === 'inventory_by_product') {
+            // Aggregate Inventory by Product
+            $rows = [];
+            
+            // Use parentsMap (products)
+            $sourceData = !empty($parentsMap) ? $parentsMap : $data;
+
+            foreach ($sourceData as $product) {
+                 if (!$this->matchesFilters($product)) continue;
+
+                 $currency = '';
+                 
+                 $stats = [
+                     'variants' => 0,
+                     'quantity' => 0,
+                     'value' => 0.0,
+                     'cost' => 0.0
+                 ];
+
+                 // Process Nested Variants (Handle both bulk JSONL and direct GraphQL structure)
+                 $variants = [];
+                 if (isset($product['variants']['edges'])) {
+                     foreach($product['variants']['edges'] as $edge) {
+                         $variants[] = $edge['node'];
+                     }
+                 } elseif (isset($product['variants']) && is_array($product['variants'])) {
+                      $variants = $product['variants'];
+                 }
+                 
+                 // If no variants found, check if mapped via parentsMap logic
+                 if (empty($variants) && isset($product['variants_count'])) {
+                     // Maybe it was flattened? No, we are iterating parents.
+                     // Just log if empty to debug
+                     // error_log("Product " . $product['id'] . " has no variants found.");
+                 }
+                 
+                 foreach ($variants as $v) {
+                     $qty = (int)($v['inventoryQuantity'] ?? 0);
+                     $price = (float)($v['price'] ?? 0);
+                     $cost = (float)($v['inventoryItem']['unitCost']['amount'] ?? 0);
+                     
+                     $stats['variants']++;
+                     $stats['quantity'] += $qty;
+                     $stats['value'] += ($price * $qty);
+                     $stats['cost'] += ($cost * $qty);
+                     
+                     if (!$currency && isset($v['priceCurrency'])) $currency = $v['priceCurrency'];
+                 }
+                 
+                 if (!$currency && isset($product['priceRangeV2']['minVariantPrice']['currencyCode'])) {
+                     $currency = $product['priceRangeV2']['minVariantPrice']['currencyCode'];
+                 }
+                 if (!$currency) $currency = 'INR';
+                 
+                 // FILTER: If no variants found, skip row (avoids fake rows for collections or malformed data)
+                 if ($stats['variants'] === 0) continue;
+
+                 $image = $product['image'] ?? ($product['featuredImage']['url'] ?? null);
+                 $title = $product['title'] ?? 'Unknown Product';
+
+                 $rows[] = [
+                     'id' => $product['id'],
+                     'product_title' => $title,
+                     'image' => $image,
+                     'total_variants' => $stats['variants'],
+                     'total_quantity' => number_format($stats['quantity']),
+                     'total_inventory_value' => ['amount' => number_format($stats['value'], 2, '.', ''), 'currencyCode' => $currency],
+                     'total_inventory_cost' => ['amount' => number_format($stats['cost'], 2, '.', ''), 'currencyCode' => $currency]
+                 ];
+            }
+            
+            
+            $data = $rows;
+            
         } elseif ($dataset === 'customers_by_country') {
             // Aggregate Customers by Country
             $byCountry = [];
@@ -934,10 +1212,69 @@ class ReportBuilderService
                  ];
              }
              $data = $rows;
+        } elseif ($dataset === 'inventory_by_vendor') {
+             // Aggregate by Vendor
+             $byVendor = [];
+             $sourceData = !empty($parentsMap) ? $parentsMap : $data;
+             
+             error_log("ReportBuilderService::inventory_by_vendor - Source Nodes: " . count($sourceData));
+
+             foreach ($sourceData as $node) {
+                 if (!$this->matchesFilters($node)) continue;
+                 
+                 $vendor = $node['vendor'] ?? 'Unknown Vendor';
+                 if (!isset($byVendor[$vendor])) {
+                     $byVendor[$vendor] = [
+                         'vendor' => $vendor,
+                         'total_variants' => 0,
+                         'total_quantity' => 0,
+                         'total_inventory_value' => 0.0,
+                         'total_inventory_cost' => 0.0,
+                         'currency' => 'INR' 
+                     ];
+                 }
+                 
+                 // Aggregate Variants
+                 $variants = $node['variants'] ?? [];
+                 
+                 // Debug first few variants
+                 static $debugVarCount = 0;
+                 if ($debugVarCount++ < 3) {
+                     error_log("ReportBuilderService::inventory_by_vendor - Node Vendor: $vendor, Variant Count: " . count($variants));
+                 }
+                 
+                 foreach ($variants as $v) {
+                     $qty = (int)($v['inventoryQuantity'] ?? 0);
+                     $price = (float)($v['price'] ?? 0);
+                     $costStats = $v['inventoryItem']['unitCost'] ?? [];
+                     $cost = (float)($costStats['amount'] ?? 0);
+                     $currency = $costStats['currencyCode'] ?? 'INR';
+                     
+                     if ($currency && $currency !== 'INR') $byVendor[$vendor]['currency'] = $currency; 
+                     
+                     $byVendor[$vendor]['total_variants']++;
+                     $byVendor[$vendor]['total_quantity'] += $qty;
+                     $byVendor[$vendor]['total_inventory_value'] += ($qty * $price);
+                     $byVendor[$vendor]['total_inventory_cost'] += ($qty * $cost);
+                 }
+             }
+             
+             $rows = [];
+             foreach ($byVendor as $vendor => $stats) {
+                 $c = $stats['currency'];
+                 $rows[] = [
+                     'vendor' => $stats['vendor'],
+                     'total_variants' => $stats['total_variants'],
+                     'total_quantity' => $stats['total_quantity'],
+                     'total_inventory_value' => ['amount' => number_format($stats['total_inventory_value'], 2, '.', ''), 'currencyCode' => $c],
+                     'total_inventory_cost' => ['amount' => number_format($stats['total_inventory_cost'], 2, '.', ''), 'currencyCode' => $c],
+                 ];
+             }
+             $data = $rows;
         }
 
         // For Standard Reports, add the Aggregated Parents to Data
-        if (!$isChildRowReport && $dataset !== 'sales_summary' && $dataset !== 'aov_time' && $dataset !== 'customers_by_country' && $dataset !== 'products_by_type') {
+        if (!$isChildRowReport && $dataset !== 'sales_summary' && $dataset !== 'aov_time' && $dataset !== 'customers_by_country' && $dataset !== 'products_by_type' && $dataset !== 'products_vendor' && $dataset !== 'inventory_by_product' && $dataset !== 'inventory_by_vendor') {
             error_log("ReportBuilderService::processBulkData - Merging " . count($parentsMap) . " parents into final data");
             foreach ($parentsMap as $p) {
                 // Apply Filters to Parents (e.g. Order Date)

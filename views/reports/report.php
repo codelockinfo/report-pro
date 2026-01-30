@@ -1719,25 +1719,93 @@ $baseUrl = rtrim($appUrl, '/');
                     start.setDate(today.getDate() - 365);
                     label = "Last 365 days";
                     break;
+                case 'last_week':
+                    // Last Week: Monday to Sunday of the previous week
+                    // Logic: Find current day, go back to previous Monday-Sunday block
+                    // Adjust to: Previous week (Monday - Sunday)
+                    {
+                        const day = today.getDay(); // 0 (Sun) - 6 (Sat)
+                        const diffToMon = day === 0 ? 6 : day - 1; // Days to subtract to get to *this* Monday
+                        
+                        // This Monday
+                        const thisMon = new Date(today);
+                        thisMon.setDate(today.getDate() - diffToMon);
+                        
+                        // Last Monday
+                        start = new Date(thisMon);
+                        start.setDate(thisMon.getDate() - 7);
+                        
+                        // Last Sunday
+                        end = new Date(thisMon);
+                        end.setDate(thisMon.getDate() - 1);
+                        
+                        label = "Last week";
+                    }
+                    break;
                 case 'last_month': 
-                     start.setMonth(start.getMonth() - 1);
-                     start.setDate(1);
-                     end.setDate(0); 
-                     label = "Last month";
-                     break; 
+                    start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    end = new Date(today.getFullYear(), today.getMonth(), 0);
+                    label = "Last month";
+                    break; 
+                case 'last_quarter':
+                    {
+                        const currMonth = today.getMonth();
+                        const currQuarter = Math.floor(currMonth / 3); // 0, 1, 2, 3
+                        const prevQuarter = currQuarter - 1;
+                        
+                        let year = today.getFullYear();
+                        let qStartMonth = prevQuarter * 3;
+                        
+                        if (prevQuarter < 0) {
+                            year--;
+                            qStartMonth = 9; // Q4 of prev year
+                        }
+                        
+                        start = new Date(year, qStartMonth, 1);
+                        end = new Date(year, qStartMonth + 3, 0);
+                        label = "Last quarter";
+                    }
+                    break;
                 case 'last_year':
-                     start.setFullYear(start.getFullYear() - 1);
-                     start.setMonth(0); start.setDate(1);
-                     end.setDate(31); 
-                     end.setMonth(11);
-                     end.setFullYear(end.getFullYear() - 1); // Fixed year basic logic
-                     label = "Last year";
-                     break;
+                    start = new Date(today.getFullYear() - 1, 0, 1);
+                    end = new Date(today.getFullYear() - 1, 11, 31);
+                    label = "Last year";
+                    break;
+                case 'wtd': // Week to date (Mon to Today)
+                    {
+                        const day = today.getDay(); // 0 (Sun) - 6 (Sat)
+                        const diffToMon = day === 0 ? 6 : day - 1; 
+                        start = new Date(today);
+                        start.setDate(today.getDate() - diffToMon);
+                        end = today;
+                        label = "Week to date";
+                    }
+                    break;
+                case 'mtd': // Month to date
+                    start = new Date(today.getFullYear(), today.getMonth(), 1);
+                    end = today;
+                    label = "Month to date";
+                    break;
+                case 'qtd': // Quarter to date
+                    {
+                        const currMonth = today.getMonth();
+                        const currQuarter = Math.floor(currMonth / 3);
+                        const qStartMonth = currQuarter * 3;
+                        start = new Date(today.getFullYear(), qStartMonth, 1);
+                        end = today;
+                        label = "Quarter to date";
+                    }
+                    break;
+                case 'ytd': // Year to date
+                    start = new Date(today.getFullYear(), 0, 1);
+                    end = today;
+                    label = "Year to date";
+                    break;
                 case 'all_time':
-                     start = null;
-                     end = null;
-                     label = "All Time";
-                     break;
+                    start = null;
+                    end = null;
+                    label = "All Time";
+                    break;
                 default:
                     return;
             }
@@ -1764,6 +1832,9 @@ $baseUrl = rtrim($appUrl, '/');
             if(this.els.checkCompare && this.els.checkCompare.checked) {
                 this.toggleCompare(true); // Recalculate compare dates
             }
+            
+            // Auto Apply on Preset Click
+            applyDateRange();
         }
 
 
@@ -1918,9 +1989,19 @@ $baseUrl = rtrim($appUrl, '/');
             datePickerInstance.toggle();
             
             const startStr = datePickerInstance.startDate ? datePickerInstance.startDate.toISOString().split('T')[0] : '';
-            const endStr = datePickerInstance.endDate ? datePickerInstance.endDate.toISOString().split('T')[0] : ''; // Use endDate correctly
+            const endStr = datePickerInstance.endDate ? datePickerInstance.endDate.toISOString().split('T')[0] : '';
             
-            fetchReportData(startStr, endStr);
+            // Auto Trigger Sync on Apply (Range or All Time)
+            if ((startStr && endStr) || (!startStr && !endStr && datePickerInstance.currentLabel === 'All Time')) {
+                // Determine if we should clear current table to show "Working..." state better
+                const tbody = document.getElementById('table-body');
+                if(tbody) tbody.innerHTML = '<tr><td colspan="100%" style="text-align:center; padding: 20px; color: #6d7175;">Syncing data for selected range...</td></tr>';
+                
+                // Call runReport in auto mode to fetch fresh data for this range
+                runReport(true); 
+            } else {
+                fetchReportData(startStr, endStr);
+            }
         }
     }
 
@@ -2144,8 +2225,9 @@ $baseUrl = rtrim($appUrl, '/');
                     let rows = data.data;
                     
                     // Update columns if provided (e.g. after auto-patch)
-                    if (data.columns && Array.isArray(data.columns)) {
+                    if (data.columns && Array.isArray(data.columns) && data.columns.length > 0) {
                         activeReportColumns = data.columns;
+                        // console.log("Updated activeReportColumns:", activeReportColumns);
                     }
 
                     // Debug logging
@@ -2235,7 +2317,11 @@ $baseUrl = rtrim($appUrl, '/');
         
         // Column definitions with formatters
         const columnDefs = {
-                    'id': { label: 'Id', formatter: val => formatId(val) },
+                'id': { label: 'Id', formatter: val => formatId(val) },
+                'image': { 
+                    label: 'Image', 
+                    formatter: val => val ? `<img src="${val}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" alt="" loading="lazy" />` : '<div style="width: 40px; height: 40px; background: #f1f2f3; border-radius: 4px;"></div>' 
+                },
                     'created_at': { label: 'DAY Created at', key: 'createdAt', formatter: val => formatDate(val) },
                     'updated_at': { label: 'Last Updated', key: 'updatedAt', formatter: val => formatDate(val) },
                     'email': { label: 'Email' },
@@ -2308,11 +2394,13 @@ $baseUrl = rtrim($appUrl, '/');
                     'sessions_count': { label: 'Sessions', formatter: val => val ? val.toLocaleString() : '0' },
                     
                     // Products By Type specific
+                    'product_title': { label: 'Product Title' },
                     'product_type': { label: 'Product Type' },
                     'total_variants': { label: 'Total Variants' },
                     'total_quantity': { label: 'Total Quantity' },
-                    'total_inventory_value': { label: 'Total Inventory Value', formatter: val => formatMoney(val) },
-                    'total_inventory_cost': { label: 'Total Inventory Cost', formatter: val => formatMoney(val) }
+                    'sku': { label: 'SKU' },
+                    'total_inventory_value': { label: 'Total inventory value', formatter: val => formatMoney(val) },
+                    'total_inventory_cost': { label: 'Total inventory value (cost based)', formatter: val => formatMoney(val) }
         };
 
         // Map PHP config columns to keys in data and display labels
@@ -2341,8 +2429,11 @@ $baseUrl = rtrim($appUrl, '/');
         
         // Body
         const tbody = document.getElementById('table-body');
+        
+        let lastProductTitle = '';
+        
         tbody.innerHTML = rows.map(row => {
-            return '<tr>' + activeColumns.map(col => {
+            const currentRowHtml = '<tr>' + activeColumns.map((col, index) => {
                 let val;
                 if (col.id === 'country') {
                         val = row.defaultAddress || row.shippingAddress;
@@ -2351,10 +2442,30 @@ $baseUrl = rtrim($appUrl, '/');
                 } else if (col.id === 'updated_at') {
                         val = row.updatedAt || row.updated_at;
                 } else {
-                        val = row[col.id] !== undefined ? row[col.id] : row[col.key];
+                        val = row[col.id];
+                        if (val === undefined) val = row[col.key];
+                        // Fallback for product_title if missing but title exists
+                        if (col.id === 'product_title' && val === undefined && row.title) val = row.title;
                 }
-                return `<td>${col.formatter(val ?? (col.id.includes('total') ? 0 : '-'), row)}</td>`;
+                
+                // HIDE REPEATING PRODUCT TITLES logic
+                // Only if column is product_title
+                let displayVal = col.formatter(val ?? (col.id.includes('total') ? 0 : '-'), row);
+                
+                if (col.id === 'product_title') {
+                     if (val === lastProductTitle) {
+                         displayVal = '<span style="color:transparent; pointer-events:none;">' + displayVal + '</span>'; // Hide visually but keep for layout/copy? Or just empty.
+                         // Actually empty is cleaner.
+                         displayVal = '';
+                     } else {
+                         lastProductTitle = val;
+                     }
+                }
+                
+                return `<td>${displayVal}</td>`;
             }).join('') + '</tr>';
+            
+            return currentRowHtml;
         }).join('');
         
         document.getElementById('record-count').innerText = `${rows.length} records`;

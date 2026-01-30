@@ -536,6 +536,70 @@ class ReportController extends Controller
             }
         }
 
+        // AUTO-PATCH: Ensure products/inventory dataset has image column
+        if (isset($config['dataset']) && ($config['dataset'] === 'products' || $config['dataset'] === 'inventory_levels')) {
+            $columns = $config['columns'] ?? [];
+            if (!in_array('image', $columns)) {
+                error_log("ReportController::run - Auto-patching report {$id} to include image");
+                // Insert after id if possible, otherwise prepend
+                $found = array_search('id', $columns);
+                if ($found !== false) {
+                     array_splice($columns, $found + 1, 0, 'image');
+                } else {
+                     array_unshift($columns, 'image');
+                }
+                $config['columns'] = $columns;
+                $reportModel->update($id, ['query_config' => json_encode($config)]);
+                // Reload report to get fresh config for execution
+                $report = $reportModel->find($id); 
+            }
+        }
+
+        // AUTO-PATCH: Fix Inventory by Product report to use correct dataset and columns
+        if ($report['category'] === 'inventory_product' && ($config['dataset'] !== 'inventory_by_product' || !in_array('total_variants', $config['columns']))) {
+             error_log("ReportController::run - Auto-patching Inventory by Product report {$id}");
+             $config['dataset'] = 'inventory_by_product';
+             $config['columns'] = ['product_title', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+        // AUTO-PATCH: Fix Products by Type / Inventory by Type report
+        if (($report['category'] === 'products_type' || $report['category'] === 'inventory_type') && ($config['dataset'] !== 'products_by_type' || !in_array('total_variants', $config['columns']))) {
+             error_log("ReportController::run - Auto-patching Inventory/Products by Type report {$id}");
+             $config['dataset'] = 'products_by_type';
+             $config['columns'] = ['product_type', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+        // AUTO-PATCH: Fix Inventory by SKU report
+        if (($report['category'] === 'inventory_sku' || $report['name'] === 'Inventory by SKU') && ($config['dataset'] !== 'inventory_by_sku' || !in_array('sku', $config['columns']))) {
+             error_log("ReportController::run - Auto-patching Inventory by SKU report {$id}");
+             $config['dataset'] = 'inventory_by_sku';
+             $config['columns'] = ['product_title', 'sku', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+        // AUTO-PATCH: Fix Inventory by Variant report
+        if (($report['category'] === 'inventory_variant' || $report['name'] === 'Inventory by variant') && ($config['dataset'] !== 'inventory_by_sku' || !in_array('variant_title', $config['columns']))) {
+             error_log("ReportController::run - Auto-patching Inventory by Variant report {$id}");
+             $config['dataset'] = 'inventory_by_sku'; // Re-use inventory_by_sku dataset as it provides per-variant data
+             $config['columns'] = ['product_title', 'variant_title', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+        // AUTO-PATCH: Fix Inventory by Vendor report
+        if (($report['category'] === 'inventory_vendor' || $report['name'] === 'Inventory by vendor') && ($config['dataset'] !== 'inventory_by_vendor' || !in_array('vendor', $config['columns']))) {
+             error_log("ReportController::run - Auto-patching Inventory by Vendor report {$id}");
+             $config['dataset'] = 'inventory_by_vendor'; 
+             $config['columns'] = ['vendor', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
         try {
             error_log("ReportController::run - Creating ShopifyService");
             $shopifyService = new \App\Services\ShopifyService(
@@ -545,6 +609,20 @@ class ReportController extends Controller
 
             error_log("ReportController::run - Creating ReportBuilderService");
             $reportBuilder = new ReportBuilderService($shopifyService, $shop['id']);
+            
+            // FINAL FORCE OVERRIDE: If report name is "Inventory by SKU", ensure dataset is correct.
+            // This overrides any previous auto-patches or legacy configs.
+            $config = json_decode($report['query_config'], true) ?? [];
+            if ($report['name'] === 'Inventory by SKU') {
+                 error_log("ReportController::run - FINAL FORCE: Setting dataset to inventory_by_sku");
+                 $config['dataset'] = 'inventory_by_sku';
+                 $config['columns'] = ['product_title', 'sku', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+                 // We don't necessarily need to save to DB every time, but we MUST use this config for execution.
+                 // Let's save it to be safe.
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config); // Update local var for query builder (though executeReport reads from DB or passed config?)
+                 // executeReport reads from DB. So update matches.
+            }
             
             // Read runtime config from request body
             $input = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -649,6 +727,11 @@ class ReportController extends Controller
 
         $config = json_decode($report['query_config'], true) ?? [];
         $columns = $config['columns'] ?? [];
+
+        // FALLBACK FIX: For Inventory by SKU, force columns if they look wrong
+        if (($report['category'] === 'inventory_sku' || $report['name'] === 'Inventory by SKU') && !in_array('sku', $columns)) {
+             $columns = ['product_title', 'sku', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+        }
 
         if (!$result) {
             $this->json(['data' => [], 'total' => 0, 'columns' => $columns]);
@@ -803,8 +886,9 @@ class ReportController extends Controller
 
         // 2. Products / Inventory Reports (Dataset: products)
         $productReports = [
-            'all_products', 'products_type', 'products_vendor', 'products_collection', 'inventory', 
-            'inventory_product', 'inventory_type', 'inventory_sku', 'inventory_variant', 'inventory_vendor', 
+            'all_products', 'products_collection', 'inventory', 
+            'all_products', 'products_collection', 'inventory', 
+             'inventory_variant', 'inventory_vendor', 
             'pending_fulfillments_var', 'total_inventory', 'variant_costs', 'variants_no_cost', 'inv_location', 
             'inv_loc_prod', 'inv_loc_type', 'inv_loc_var', 'inv_loc_vendor', 'qty_loc_var', 'pending_drafts_var'
         ];
@@ -816,17 +900,62 @@ class ReportController extends Controller
                 'description' => 'Report for ' . ($names[$type] ?? str_replace('_', ' ', $type)),
                 'config' => [
                     'dataset' => 'products',
-                    'columns' => ['id', 'title', 'price', 'product_type', 'vendor', 'created_at', 'total_inventory', 'status']
+                    'columns' => ['id', 'image', 'title', 'price', 'product_type', 'vendor', 'created_at', 'total_inventory', 'status']
                 ]
             ];
         }
+
+        $reports['products_vendor'] = [
+            'name' => 'Total products by vendor',
+            'description' => 'Report for Total products by vendor',
+            'config' => [
+                'dataset' => 'products_vendor',
+                'columns' => ['vendor', 'total_products']
+            ]
+        ];
+
+        $reports['products_type'] = [
+            'name' => 'Total products by type',
+            'description' => 'Report for Total products by type',
+            'config' => [
+                'dataset' => 'products_by_type',
+                'columns' => ['product_type', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost']
+            ]
+        ];
+
+        $reports['inventory_type'] = [
+            'name' => 'Inventory by product type',
+            'description' => 'Inventory details aggregated by product type',
+            'config' => [
+                'dataset' => 'products_by_type',
+                'columns' => ['product_type', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost']
+            ]
+        ];
+
+        $reports['inventory_sku'] = [
+            'name' => 'Inventory by SKU',
+            'description' => 'Inventory details per SKU',
+            'config' => [
+                'dataset' => 'inventory_by_sku',
+                'columns' => ['product_title', 'sku', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost']
+            ]
+        ];
+
+        $reports['inventory_product'] = [
+            'name' => 'Inventory by product',
+            'description' => 'Inventory details aggregated by product',
+            'config' => [
+                'dataset' => 'inventory_by_product',
+                'columns' => ['product_title', 'image', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost']
+            ]
+        ];
 
         $reports['inventory_levels'] = [
             'name' => 'Inventory Levels',
             'description' => 'Detailed inventory levels by location',
             'config' => [
                 'dataset' => 'inventory_levels',
-                'columns' => ['id', 'location_name', 'sku', 'available', 'updated_at']
+                'columns' => ['id', 'image', 'location_name', 'sku', 'available', 'updated_at']
             ]
         ];
 
