@@ -28,6 +28,13 @@ class ReportBuilderService
         $groupBy = $config['group_by'] ?? null;
         $aggregations = $config['aggregations'] ?? [];
 
+        // FIX: Total Inventory Summary must filter ALL products, ignoring date range
+        if ($dataset === 'total_inventory_summary') {
+             $filters = array_filter($filters, function($f) {
+                 return !in_array($f['field'], ['created_at', 'updated_at']);
+             });
+        }
+
         switch ($dataset) {
             case 'orders':
                 return $this->buildOrdersQuery($filters, $columns, $groupBy, $aggregations);
@@ -37,7 +44,9 @@ class ReportBuilderService
             case 'inventory_by_product':
             case 'inventory_by_vendor':
             case 'inventory_by_sku':
-                return $this->buildProductsQuery($filters, $columns, $groupBy, $aggregations);
+            case 'total_inventory_summary':
+            case 'variant_costs':
+                return $this->buildProductsQuery($filters, $columns, $groupBy, $aggregations, $dataset);
             case 'customers':
             case 'customers_by_country':
                 return $this->buildCustomersQuery($filters, $columns, $groupBy, $aggregations);
@@ -57,7 +66,10 @@ class ReportBuilderService
                 return $this->buildAovTimeQuery($filters, $columns, $groupBy, $aggregations);
             case 'browser_share':
                 return $this->buildBrowserShareQuery($filters, $columns, $groupBy, $aggregations);
+            case 'pending_fulfillment_by_variant':
+                return $this->buildPendingFulfillmentsQuery($filters, $columns, $groupBy, $aggregations); // Implement this method
             default:
+
                 throw new \Exception("Unknown dataset: {$dataset}");
         }
     }
@@ -130,7 +142,7 @@ class ReportBuilderService
         return $query;
     }
 
-    private function buildProductsQuery($filters, $columns, $groupBy, $aggregations)
+    private function buildProductsQuery($filters, $columns, $groupBy, $aggregations, $dataset = '')
     {
         $searchQuery = $this->buildSearchQuery($filters, [
             'id', 'title', 'vendor', 'product_type', 'status', 'created_at', 'updated_at', 'tag'
@@ -182,9 +194,17 @@ class ReportBuilderService
             }
         }
 
-        // Force fetch variants for Aggregation Reports (products_by_type)
+        // Force fetch variants for specific datasets or if variant fields are needed
         $needsVariants = false;
-        if (in_array('total_variants', $columns) || in_array('total_inventory_value', $columns) || in_array('total_inventory_cost', $columns) || in_array('total_quantity', $columns)) {
+        $variantFields = ['total_variants', 'total_inventory_value', 'total_inventory_cost', 'total_quantity', 'unit_margin', 'unit_margin_percent', 'cost', 'sku', 'variant_title'];
+        $datasetNeedsVariants = ['inventory_by_sku', 'pending_fulfillment_by_variant'];
+        
+        $hasVariantColumn = !empty(array_intersect($variantFields, $columns));
+        $filterFields = array_column($filters, 'field');
+        $hasVariantFilter = !empty(array_intersect($variantFields, $filterFields));
+        $isVariantDataset = in_array($dataset, $datasetNeedsVariants);
+
+        if ($hasVariantColumn || $hasVariantFilter || $isVariantDataset) {
             $needsVariants = true;
         }
 
@@ -404,6 +424,36 @@ class ReportBuilderService
         return $query;
     }
 
+    private function buildPendingFulfillmentsQuery($filters, $columns, $groupBy, $aggregations)
+    {
+         // Fetch Open Orders (active) to capture Unfulfilled and Partial
+         // Broadened query to ensure we match other apps (which likely show all pending work regardless of payment status)
+         // 'status:any' ensures we don't miss archived-but-unfulfilled orders, or older open orders.
+         $queryStr = "status:any";
+         
+         // If generic search is added via filters, append it
+         $searchQuery = $this->buildSearchQuery($filters, ['id', 'name', 'created_at']);
+         if (!empty($searchQuery)) {
+             $queryStr .= " AND " . $searchQuery;
+         }
+
+         // FIX: Remove 'first: 250' to allow Bulk API to process complete history
+         $args = "query: \"" . addslashes($queryStr) . "\"";
+         
+         // We fetch Orders -> LineItems -> Variant details
+         $query = "query { orders($args) { edges { node { id name createdAt ";
+         
+         // Fetch Line Items with Nested Variant Data needed for the report
+         // Required cols: product_title (from variant.product), variant_title, inventory_policy, inventory_quantity
+         $query .= "lineItems { edges { node { ";
+         $query .= "quantity fulfillableQuantity sku variant { id title inventoryQuantity inventoryPolicy product { title } } ";
+         $query .= "} } } ";
+         
+         $query .= "} } } }";
+         
+         return $query;
+    }
+
     public function executeReport($reportId, $runtimeConfig = [])
     {
         error_log("ReportBuilderService::executeReport - ID: {$reportId}");
@@ -432,8 +482,17 @@ class ReportBuilderService
             // ...
         }
         
+        // FIX: Force Strip Date Filters here for Total Inventory
+        if (($config['dataset']??'') === 'total_inventory_summary') {
+             $config['filters'] = array_values(array_filter($config['filters'] ?? [], function($f) {
+                 return !in_array($f['field'], ['created_at', 'updated_at']);
+             }));
+             error_log("ReportBuilderService::executeReport - STRIPPED DATE FILTERS for Inventory Report: " . $config['dataset']);
+        }
+
         $this->activeFilters = $config['filters'] ?? [];
         error_log("ReportBuilderService::executeReport - Active Filters Set: " . json_encode($this->activeFilters));
+        error_log("ReportBuilderService::executeReport - Dataset: " . ($config['dataset'] ?? 'NONE'));
 
         $query = $this->buildQuery($config);
         
@@ -553,13 +612,21 @@ class ReportBuilderService
         }
         file_put_contents(__DIR__ . '/../../debug_bulk_raw.txt', $debugRaw);
 
+        // FEATURE FIX: Pending Fulfillments should show ALL open orders regardless of date range.
+        if ($dataset === 'pending_fulfillment_by_variant' || $dataset === 'total_inventory_summary') {
+            $this->activeFilters = array_filter($this->activeFilters, function($f) {
+                return !in_array($f['field'], ['created_at', 'updated_at']);
+            });
+            error_log("ReportBuilderService::processBulkData - Disabled date filters for Dataset: $dataset");
+        }
+
         $data = [];
         
         $parentsMap = [];
         $orphanedChildren = []; // parentId => [child1, child2, ...]
         
         // Datasets that return Child Rows (flattened) instead of Aggregated Parents
-        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku']); 
+        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku', 'pending_fulfillment_by_variant']);  
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -582,7 +649,41 @@ class ReportBuilderService
                          // Fallback for Filtering: Use Parent Date if Child lacks it
                          if(!isset($decoded['createdAt'])) $decoded['createdAt'] = $parentContext['createdAt'];
                     }
+                    // Merge other common Parent fields for filtering (crucial for Pending Fulfillments)
+                    foreach(['financialStatus', 'fulfillmentStatus', 'status', 'tags', 'customer'] as $fKey) {
+                        if (isset($parentContext[$fKey]) && !isset($decoded[$fKey])) {
+                            $decoded[$fKey] = $parentContext[$fKey];
+                        }
+                    }
 
+                    // Mapping for Pending Fulfillment by Variant (Standard Flattening first)
+                    if ($dataset === 'pending_fulfillment_by_variant') {
+                        // Extract fields from nested structure
+                        $variant = $decoded['variant'] ?? [];
+                        $product = $variant['product'] ?? [];
+                        
+                        $decoded['product_title'] = $product['title'] ?? 'Unknown Product';
+                        $decoded['variant_title'] = $variant['title'] ?? $decoded['title'] ?? 'Unknown Variant';
+                        $decoded['inventory_policy'] = $variant['inventoryPolicy'] ?? '';
+                        $decoded['inventory_quantity'] = (int)($variant['inventoryQuantity'] ?? 0);
+                        
+                        // Use fulfillableQuantity (remaining) if available, otherwise total quantity
+                        $pendingQty = 0;
+                        if (isset($decoded['fulfillableQuantity']) && (int)$decoded['fulfillableQuantity'] > 0) {
+                            $pendingQty = (int)$decoded['fulfillableQuantity'];
+                        } else {
+                            $pendingQty = (int)($decoded['quantity'] ?? 0);
+                        }
+                        
+                        $decoded['quantity_pending_fulfillment'] = $pendingQty;
+                        $decoded['variant_id'] = $variant['id'] ?? $decoded['sku'] ?? 'unknown'; // Grouping Key
+                        
+                        // optimization: filter out 0 values immediately
+                        if ($pendingQty <= 0) {
+                            continue;
+                        }
+                    }
+                    
                     // Mapping for Inventory by SKU (Flattening Variants)
                     if ($dataset === 'inventory_by_sku') {
                         $decoded['product_title'] = $parentContext['title'] ?? 'Unknown Product';
@@ -591,11 +692,18 @@ class ReportBuilderService
                         $decoded['vendor'] = $parentContext['vendor'] ?? '';
                         $decoded['status'] = $parentContext['status'] ?? '';
                         $decoded['image'] = $decoded['image']['url'] ?? ($parentContext['featuredImage']['url'] ?? '');
+                        // Pass through dates for filtering (both styles for safety)
+                        $decoded['createdAt'] = $parentContext['createdAt'] ?? '';
+                        $decoded['updatedAt'] = $parentContext['updatedAt'] ?? '';
+                        $decoded['created_at'] = $parentContext['createdAt'] ?? '';
+                        $decoded['updated_at'] = $parentContext['updatedAt'] ?? '';
                         
                         $qty = (int)($decoded['inventoryQuantity'] ?? 0);
                         $price = (float)($decoded['price'] ?? 0);
+                        
                         $costStats = $decoded['inventoryItem']['unitCost'] ?? [];
-                        $cost = (float)($costStats['amount'] ?? 0);
+                        $costAmount = $costStats['amount'] ?? '';
+                        $cost = !empty($costAmount) && is_numeric($costAmount) ? (float)$costAmount : 0.0;
                         $currency = $costStats['currencyCode'] ?? 'INR'; 
                         
                         $decoded['total_quantity'] = $qty;
@@ -608,9 +716,43 @@ class ReportBuilderService
                             'currencyCode' => $currency
                         ];
                         $decoded['total_variants'] = 1; // It's a single SKU
+                        
+                        // Add price field (for Variant costs report)
+                        $decoded['price'] = [
+                            'amount' => number_format($price, 2, '.', ''),
+                            'currencyCode' => $currency
+                        ];
+                        
+                        // Add cost and margin fields (for Variant costs report)
+                        $hasCost = !empty($costAmount) && is_numeric($costAmount) && $cost > 0;
+                        if ($hasCost) {
+                            $unitMargin = $price - $cost;
+                            $unitMarginPercent = $cost > 0 ? (($unitMargin / $cost) * 100) : 0.0;
+                            
+                            $decoded['cost'] = [
+                                'amount' => number_format($cost, 2, '.', ''),
+                                'currencyCode' => $currency
+                            ];
+                            $decoded['unit_margin'] = [
+                                'amount' => number_format($unitMargin, 2, '.', ''),
+                                'currencyCode' => $currency
+                            ];
+                            $decoded['unit_margin_percent'] = number_format($unitMarginPercent, 2, '.', '') . '%';
+                        } else {
+                            $decoded['cost'] = '-';
+                            $decoded['unit_margin'] = '-';
+                            $decoded['unit_margin_percent'] = '-';
+                        }
                     }
 
                     if ($this->matchesFilters($decoded)) {
+                        // Debug: Log final data structure
+                        static $dataLogCount = 0;
+                        if ($dataLogCount < 1 && $dataset === 'inventory_by_sku') {
+                            error_log("inventory_by_sku DEBUG - Final row price field: " . json_encode($decoded['price'] ?? 'NOT SET'));
+                            error_log("inventory_by_sku DEBUG - Final row cost field: " . json_encode($decoded['cost'] ?? 'NOT SET'));
+                            $dataLogCount++;
+                        }
                         $data[] = $decoded;
                     }
                 } else {
@@ -765,10 +907,11 @@ class ReportBuilderService
                 'total_gross_margin' => ['amount' => '0.00', 'currencyCode' => $currency],
             ]];
             $data = $summary; // Replace data with summary
-        } elseif ($dataset === 'products_by_type') {
+        } elseif ($dataset === 'products_by_type' || $dataset === 'total_inventory_summary') {
             // Aggregate Products by Type
             $byType = [];
             $grandTotal = [
+                'products' => 0, // Track total products
                 'variants' => 0,
                 'quantity' => 0,
                 'value' => 0.0,
@@ -781,6 +924,8 @@ class ReportBuilderService
 
             foreach ($sourceData as $product) {
                  if (!$this->matchesFilters($product)) continue;
+                 
+                 $grandTotal['products']++;
 
                  $type = $product['productType'] ?? 'Unknown';
                  if (trim($type) === '') $type = 'Unknown';
@@ -799,6 +944,8 @@ class ReportBuilderService
                  if (!$byType[$type]['image'] && isset($product['image'])) {
                      $byType[$type]['image'] = $product['image'];
                  }
+
+
                  if (!$byType[$type]['image'] && isset($product['featuredImage']['url'])) {
                      $byType[$type]['image'] = $product['featuredImage']['url'];
                  }
@@ -821,10 +968,17 @@ class ReportBuilderService
                      }
                  }
                  
-                 foreach ($variants as $v) {
+                foreach ($variants as $v) {
                      $qty = (int)($v['inventoryQuantity'] ?? 0);
-                     $price = (float)($v['price'] ?? 0);
-                     $cost = (float)($v['inventoryItem']['unitCost']['amount'] ?? 0);
+                     // CLEANUP: Remove commas to ensure is_numeric works
+                     $priceStr = str_replace(',', '', $v['price'] ?? 0);
+                     $costStr = str_replace(',', '', $v['inventoryItem']['unitCost']['amount'] ?? 0);
+
+                     $price = is_numeric($priceStr) ? (float)$priceStr : 0.0;
+                     $cost = is_numeric($costStr) ? (float)$costStr : 0.0;
+                     
+                     if (is_nan($price)) $price = 0.0;
+                     if (is_nan($cost)) $cost = 0.0;
                      
                      $byType[$type]['variants']++;
                      $byType[$type]['quantity'] += $qty;
@@ -845,33 +999,96 @@ class ReportBuilderService
             }
             if (!$currency) $currency = 'INR';
 
-            uasort($byType, function($a, $b) {
-                return $b['value'] <=> $a['value'];
-            });
+            if ($dataset === 'total_inventory_summary') {
+                $gtValue = $grandTotal['value'];
+                $gtCost = $grandTotal['cost'];
+                
+                // PARANOID CHECK: Log the raw values
+                error_log("ReportBuilderService::total_inventory_summary - Raw Value: " . json_encode($gtValue) . ", Raw Cost: " . json_encode($gtCost));
 
-            $rows = [];
-            foreach ($byType as $type => $stats) {
+                // Force numeric type
+                if (!is_numeric($gtValue)) $gtValue = 0.0;
+                if (!is_numeric($gtCost)) $gtCost = 0.0;
+                
+                $gtValue = (float)$gtValue;
+                $gtCost = (float)$gtCost;
+
+                if (is_nan($gtValue) || is_infinite($gtValue)) $gtValue = 0.0;
+                if (is_nan($gtCost) || is_infinite($gtCost)) $gtCost = 0.0;
+
+                $data = [[
+                    'total_products' => $grandTotal['products'],
+                    'total_variants' => $grandTotal['variants'],
+                    'total_quantity' => number_format($grandTotal['quantity']),
+                    'total_inventory_value' => ['amount' => number_format($gtValue, 2, '.', ''), 'currencyCode' => $currency],
+                    'total_inventory_cost' => ['amount' => number_format($gtCost, 2, '.', ''), 'currencyCode' => $currency],
+                ]];
+            } else {
+                uasort($byType, function($a, $b) {
+                    return $b['value'] <=> $a['value'];
+                });
+
+                $rows = [];
+                foreach ($byType as $type => $stats) {
+                    $rows[] = [
+                        'product_type' => $type,
+                        'image' => $stats['image'],
+                        'total_variants' => $stats['variants'],
+                        'total_quantity' => number_format($stats['quantity']),
+                        'total_inventory_value' => ['amount' => number_format($stats['value'], 2, '.', ''), 'currencyCode' => $currency],
+                        'total_inventory_cost' => ['amount' => number_format($stats['cost'], 2, '.', ''), 'currencyCode' => $currency],
+                    ];
+                }
+
+                // TOTAL Row
                 $rows[] = [
-                    'product_type' => $type,
-                    'image' => $stats['image'],
-                    'total_variants' => $stats['variants'],
-                    'total_quantity' => number_format($stats['quantity']),
-                    'total_inventory_value' => ['amount' => number_format($stats['value'], 2, '.', ''), 'currencyCode' => $currency],
-                    'total_inventory_cost' => ['amount' => number_format($stats['cost'], 2, '.', ''), 'currencyCode' => $currency],
+                    'product_type' => 'TOTAL',
+                    'image' => '',
+                    'total_variants' => $grandTotal['variants'],
+                    'total_quantity' => number_format($grandTotal['quantity']),
+                    'total_inventory_value' => ['amount' => number_format($grandTotal['value'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_inventory_cost' => ['amount' => number_format($grandTotal['cost'], 2, '.', ''), 'currencyCode' => $currency],
                 ];
+                
+                $data = $rows;
             }
 
-            // TOTAL Row
-            $rows[] = [
-                'product_type' => 'TOTAL',
-                'image' => '',
-                'total_variants' => $grandTotal['variants'],
-                'total_quantity' => number_format($grandTotal['quantity']),
-                'total_inventory_value' => ['amount' => number_format($grandTotal['value'], 2, '.', ''), 'currencyCode' => $currency],
-                'total_inventory_cost' => ['amount' => number_format($grandTotal['cost'], 2, '.', ''), 'currencyCode' => $currency],
-            ];
-            
-            $data = $rows;
+        } elseif ($dataset === 'pending_fulfillment_by_variant') {
+             // Aggregate by Variant ID
+             $byVariant = [];
+             
+             foreach ($data as $row) {
+                 $vid = $row['variant_id'] ?? $row['sku'] ?? 'unknown';
+                 
+                 if (!isset($byVariant[$vid])) {
+                     $byVariant[$vid] = [
+                         'product_title' => $row['product_title'],
+                         'variant_title' => $row['variant_title'],
+                         'inventory_policy' => strtolower($row['inventory_policy']), // 'deny' or 'continue'
+                         'inventory_quantity' => $row['inventory_quantity'],
+                         'quantity_pending_fulfillment' => 0
+                     ];
+                 }
+                 
+                 // Accumulate pending quantity
+                 $byVariant[$vid]['quantity_pending_fulfillment'] += $row['quantity_pending_fulfillment'];
+             }
+             
+             // Filter out 0 values
+             $filteredData = [];
+             $preCount = count($byVariant);
+             foreach ($byVariant as $item) {
+                 $pending = (int)($item['quantity_pending_fulfillment'] ?? 0);
+                 if ($pending > 0) {
+                     $item['quantity_pending_fulfillment'] = $pending; // Ensure it's int
+                     $filteredData[] = $item;
+                 }
+             }
+             
+             $postCount = count($filteredData);
+             error_log("ReportBuilderService - Pending Fulfillments Filter: {$preCount} -> {$postCount}");
+             
+             $data = array_values($filteredData);
 
         } elseif ($dataset === 'products_vendor') {
             // Aggregate Products by Vendor
@@ -1457,10 +1674,14 @@ class ReportBuilderService
                 continue; 
             }
 
-            // ... (Value Check)
-            if (!$nodeValue) continue; // Skip if null (or use failed logic)
-            
-            if ($nodeValue === '__NO_MATCH__') return false; // Explicit failure from deep check
+            // Extract amount if it's a monetary object
+            if (is_array($nodeValue) && isset($nodeValue['amount'])) {
+                $nodeValue = $nodeValue['amount'];
+            }
+
+            // Valid value check: allowed null/empty/zero for comparison
+            if ($nodeValue === '__NO_MATCH__') return false; 
+            if ($nodeValue === null) continue; 
 
             // Date Comparison
             if (strpos($field, '_at') !== false) {

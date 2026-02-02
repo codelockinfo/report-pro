@@ -600,6 +600,16 @@ class ReportController extends Controller
              $report = $reportModel->find($id);
         }
 
+        // AUTO-PATCH: Fix Pending Fulfillments report
+        if (($report['category'] === 'pending_fulfillments_var' || $report['name'] === 'Pending fulfillments') && ($config['dataset'] !== 'pending_fulfillment_by_variant')) {
+             error_log("ReportController::run - Auto-patching Pending Fulfillments report {$id}");
+             $config['dataset'] = 'pending_fulfillment_by_variant';
+             $config['columns'] = ['product_title', 'variant_title', 'inventory_policy', 'inventory_quantity', 'quantity_pending_fulfillment'];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+
         try {
             error_log("ReportController::run - Creating ShopifyService");
             $shopifyService = new \App\Services\ShopifyService(
@@ -622,6 +632,25 @@ class ReportController extends Controller
                  $reportModel->update($id, ['query_config' => json_encode($config)]);
                  $report['query_config'] = json_encode($config); // Update local var for query builder (though executeReport reads from DB or passed config?)
                  // executeReport reads from DB. So update matches.
+            }
+            
+            // FINAL FORCE OVERRIDE: If report name is "Variant costs", use inventory_by_sku dataset (same as Inventory by variant)
+            if ($report['name'] === 'Variant costs') {
+                 error_log("ReportController::run - FINAL FORCE: Setting Variant costs to use inventory_by_sku dataset");
+                 $config['dataset'] = 'inventory_by_sku'; // Same dataset as Inventory by variant
+                 $config['columns'] = ['product_title', 'variant_title', 'price', 'cost', 'unit_margin', 'unit_margin_percent'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+
+            // FINAL FORCE OVERRIDE: If report name is "Variants without cost", use inventory_by_sku dataset and filter for missing costs
+            if ($report['name'] === 'Variants without cost') {
+                 error_log("ReportController::run - FINAL FORCE: Setting Variants without cost to use inventory_by_sku dataset");
+                 $config['dataset'] = 'inventory_by_sku';
+                 $config['columns'] = ['image', 'product_title', 'variant_title', 'price'];
+                 $config['filters'] = [['field' => 'cost', 'operator' => '=', 'value' => '-']];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
             }
             
             // Read runtime config from request body
@@ -727,21 +756,52 @@ class ReportController extends Controller
 
         $config = json_decode($report['query_config'], true) ?? [];
         $columns = $config['columns'] ?? [];
+        
+        // FORCE OVERRIDE: Ensure Variant costs has correct columns
+        if ($report['name'] === 'Variant costs') {
+            $config['dataset'] = 'variant_costs';
+            $config['columns'] = ['product_title', 'variant_title', 'price', 'cost', 'unit_margin', 'unit_margin_percent'];
+            $columns = $config['columns'];
+            // Update database to persist the fix
+            $reportModel->update($id, ['query_config' => json_encode($config)]);
+        }
 
         // FALLBACK FIX: For Inventory by SKU, force columns if they look wrong
         if (($report['category'] === 'inventory_sku' || $report['name'] === 'Inventory by SKU') && !in_array('sku', $columns)) {
              $columns = ['product_title', 'sku', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+        }
+        
+        // FALLBACK FIX: For Variant costs, force columns if they look wrong
+        if (($report['category'] === 'variant_costs' || $report['name'] === 'Variant costs') && !in_array('variant_title', $columns)) {
+             $columns = ['product_title', 'variant_title', 'price', 'cost', 'unit_margin', 'unit_margin_percent'];
         }
 
         if (!$result) {
             $this->json(['data' => [], 'total' => 0, 'columns' => $columns]);
         }
 
-        $data = json_decode($result['result_data'], true);
+        $data = json_decode($result['result_data'], true) ?? [];
         
+        // FINAL SAFETY FILTER: For Pending Fulfillments, strictly remove 0 values at read time
+        if ($report['category'] === 'pending_fulfillments_var' || $report['name'] === 'Pending fulfillments') {
+             $filtered = [];
+             foreach ($data as $row) {
+                 $val = (int)($row['quantity_pending_fulfillment'] ?? 0);
+                 if ($val > 0) {
+                     $filtered[] = $row;
+                 }
+             }
+             $data = $filtered;
+        }
+
+        // Enforce Single Row for Summary Reports
+        if (($config['dataset'] ?? '') === 'total_inventory_summary' && count($data) > 1) {
+            $data = array_slice($data, 0, 1);
+        }
+
         $this->json([
             'data' => $data,
-            'total' => $result['total_records'],
+            'total' => count($data),
             'columns' => $columns
         ]);
     }
@@ -883,13 +943,12 @@ class ReportController extends Controller
                 'filters' => [['field' => 'fulfillment_status', 'operator' => '!=', 'value' => 'fulfilled']]
             ]
         ];
-
         // 2. Products / Inventory Reports (Dataset: products)
         $productReports = [
             'all_products', 'products_collection', 'inventory', 
             'all_products', 'products_collection', 'inventory', 
              'inventory_variant', 'inventory_vendor', 
-            'pending_fulfillments_var', 'total_inventory', 'variant_costs', 'variants_no_cost', 'inv_location', 
+            'total_inventory', 'variants_no_cost', 'inv_location', 
             'inv_loc_prod', 'inv_loc_type', 'inv_loc_var', 'inv_loc_vendor', 'qty_loc_var', 'pending_drafts_var'
         ];
 
@@ -904,6 +963,15 @@ class ReportController extends Controller
                 ]
             ];
         }
+
+        $reports['pending_fulfillments_var'] = [
+            'name' => 'Pending fulfillments',
+            'description' => 'Pending fulfillments by variant',
+            'config' => [
+                'dataset' => 'pending_fulfillment_by_variant',
+                'columns' => ['product_title', 'variant_title', 'inventory_policy', 'inventory_quantity', 'quantity_pending_fulfillment']
+            ]
+        ];
 
         $reports['products_vendor'] = [
             'name' => 'Total products by vendor',
@@ -956,6 +1024,26 @@ class ReportController extends Controller
             'config' => [
                 'dataset' => 'inventory_levels',
                 'columns' => ['id', 'image', 'location_name', 'sku', 'available', 'updated_at']
+            ]
+        ];
+
+        // Specific override for Total Inventory Summary
+        $reports['total_inventory'] = [
+            'name' => 'Total inventory summary',
+            'description' => 'Summary of total inventory value and quantity',
+            'config' => [
+                'dataset' => 'total_inventory_summary',
+                'columns' => ['total_products', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost']
+            ]
+        ];
+
+        // Variant Costs Report - Show margin calculations, display "-" for products without cost
+        $reports['variant_costs'] = [
+            'name' => 'Variant costs',
+            'description' => 'Product variant pricing with cost and margin analysis',
+            'config' => [
+                'dataset' => 'variant_costs',
+                'columns' => ['product_title', 'variant_title', 'price', 'cost', 'unit_margin', 'unit_margin_percent']
             ]
         ];
 

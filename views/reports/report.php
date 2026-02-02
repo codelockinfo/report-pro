@@ -442,7 +442,7 @@ $baseUrl = rtrim($appUrl, '/');
                 <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
             </svg>
             <div class="description-text">
-                <strong>Sales by customer</strong> revealing number of orders and average order value, filtered by orders processed in the last 30 days and sorted by total sales in descending order.
+                <?= htmlspecialchars($report['description']) ?>
             </div>
         </div>
         
@@ -2235,7 +2235,10 @@ $baseUrl = rtrim($appUrl, '/');
 
                     const originalCount = rows.length;
                     
-                    if (startDate && endDate) {
+                    const datasetType = "<?= $config['dataset'] ?? '' ?>";
+                    const isTotalInventory = datasetType === 'total_inventory_summary';
+
+                    if (startDate && endDate && !isTotalInventory) {
                         const start = new Date(startDate);
                         start.setHours(0,0,0,0);
                         const end = new Date(endDate);
@@ -2364,14 +2367,16 @@ $baseUrl = rtrim($appUrl, '/');
                     'quantity': { label: 'Quantity', key: 'quantity' },
                     'price': { 
                         label: 'Price', 
-                        key: 'priceSet', 
                         formatter: (val, row) => {
-                            // Products: priceRangeV2
+                            if (val && typeof val === 'object' && val.amount !== undefined) return formatMoney(val);
                             if (row.priceRangeV2) return formatMoney(row.priceRangeV2.minVariantPrice);
-                            // Line Items: priceSet (val)
-                            return formatMoney(val?.shopMoney);
+                            if (row.priceSet) return formatMoney(row.priceSet.shopMoney);
+                            return formatMoney(val);
                         }
                     },
+                    'cost': { label: 'Cost', formatter: val => val === '-' ? '-' : formatMoney(val) },
+                    'unit_margin': { label: 'Unit Margin', formatter: val => val === '-' ? '-' : formatMoney(val) },
+                    'unit_margin_percent': { label: 'Unit Margin Percent' },
 
                     // Sales Summary formatters
                     'total_orders': { label: 'Total orders' },
@@ -2448,17 +2453,15 @@ $baseUrl = rtrim($appUrl, '/');
                         if (col.id === 'product_title' && val === undefined && row.title) val = row.title;
                 }
                 
-                // HIDE REPEATING PRODUCT TITLES logic
-                // Only if column is product_title
+                // HIDE REPEATING PRODUCT TITLES & IMAGES logic
                 let displayVal = col.formatter(val ?? (col.id.includes('total') ? 0 : '-'), row);
                 
-                if (col.id === 'product_title') {
-                     if (val === lastProductTitle) {
-                         displayVal = '<span style="color:transparent; pointer-events:none;">' + displayVal + '</span>'; // Hide visually but keep for layout/copy? Or just empty.
-                         // Actually empty is cleaner.
+                if (col.id === 'product_title' || col.id === 'image') {
+                     const currentProductTitle = row.product_title || row.title || '';
+                     if (currentProductTitle && currentProductTitle === lastProductTitle) {
                          displayVal = '';
-                     } else {
-                         lastProductTitle = val;
+                     } else if (col.id === 'product_title') {
+                         lastProductTitle = currentProductTitle;
                      }
                 }
                 

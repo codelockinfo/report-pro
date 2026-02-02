@@ -314,7 +314,25 @@ fetch(`/reports/${reportId}/data`)
             
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = data.data.map(row => {
-                return '<tr>' + headers.map(h => `<td>${row[h] || ''}</td>`).join('') + '</tr>';
+                return '<tr>' + headers.map(h => {
+                    let cellValue = row[h];
+                    
+                    // Handle monetary values (objects with amount and currencyCode)
+                    if (cellValue && typeof cellValue === 'object' && cellValue.amount !== undefined) {
+                        const symbol = cellValue.currencyCode === 'INR' ? '₹' : cellValue.currencyCode;
+                        cellValue = `${symbol}${cellValue.amount}`;
+                    }
+                    // Handle null/undefined
+                    else if (cellValue === null || cellValue === undefined) {
+                        cellValue = '';
+                    }
+                    // Handle other objects
+                    else if (typeof cellValue === 'object') {
+                        cellValue = JSON.stringify(cellValue);
+                    }
+                    
+                    return `<td>${cellValue}</td>`;
+                }).join('') + '</tr>';
             }).join('');
             
             document.getElementById('record-count').innerText = `${data.data.length} records`;
