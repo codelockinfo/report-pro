@@ -68,6 +68,12 @@ class ReportBuilderService
                 return $this->buildBrowserShareQuery($filters, $columns, $groupBy, $aggregations);
             case 'pending_fulfillment_by_variant':
                 return $this->buildPendingFulfillmentsQuery($filters, $columns, $groupBy, $aggregations); // Implement this method
+            case 'payouts':
+                return $this->buildPayoutsQuery($filters, $columns, $groupBy, $aggregations);
+
+            case 'monthly_disputes':
+            case 'pending_disputes':
+                return $this->buildDisputesQuery($filters, $columns, $groupBy, $aggregations);
             default:
 
                 throw new \Exception("Unknown dataset: {$dataset}");
@@ -454,6 +460,74 @@ class ReportBuilderService
          return $query;
     }
 
+    private function buildPayoutsQuery($filters, $columns, $groupBy, $aggregations)
+    {
+        // 1. Build Query
+        // Map 'date' filter to 'issued_at' for search query builder
+        $searchQuery = $this->buildSearchQuery($filters, ['id', 'status', 'issued_at']);
+        
+        $args = "first: 250";
+        if (!empty($searchQuery)) {
+             $args .= ", query: \"" . addslashes($searchQuery) . "\"";
+        }
+
+        // Bulk Operations require pagination arguments on connections (e.g. first: 250)
+        // Wraps in shopifyPaymentsAccount -> id -> payouts
+        $query = "query { shopifyPaymentsAccount { id payouts($args) { edges { node { ";
+        
+        // Corrected Fields based on Standard ShopifyPaymentsPayout
+        $fields = ['id', 'issuedAt', 'status'];
+        
+        // Payout Amount (Net)
+        $fields[] = 'net { amount currencyCode }';
+
+        // Summary for Gross/Fee calculations
+        // Only including fields known to be valid in this API version
+        $fields[] = 'summary { 
+            adjustmentsFee { amount }
+            adjustmentsGross { amount }
+            chargesFee { amount }
+            chargesGross { amount }
+            reservedFundsFee { amount }
+            reservedFundsGross { amount }
+            retriedPayoutsFee { amount }
+            retriedPayoutsGross { amount }
+        }';
+        
+        $query .= implode(' ', $fields);
+        $query .= " } } } } }";
+        
+        return $query;
+    }
+
+
+
+    private function buildDisputesQuery($filters, $columns, $groupBy, $aggregations)
+    {
+        // 1. Build Query (using initiated_at for date filtering)
+        $searchQuery = $this->buildSearchQuery($filters, ['id', 'status', 'initiated_at']);
+        
+        $args = "first: 250";
+        if (!empty($searchQuery)) {
+             $args .= ", query: \"" . addslashes($searchQuery) . "\"";
+        }
+
+        // shopifyPaymentsAccount -> disputes
+        $query = "query { shopifyPaymentsAccount { id disputes($args) { edges { node { ";
+        
+        $fields = ['id', 'initiatedAt', 'status', 'type', 'reason', 'amount { amount currencyCode }'];
+        
+        // Extended fields for 'Pending Disputes' detail view
+        $fields[] = 'evidenceDueBy';
+        $fields[] = 'evidenceSentOn';
+        $fields[] = 'order { name createdAt email customer { displayName } }';
+
+        $query .= implode(' ', $fields);
+        $query .= " } } } } }";
+        
+        return $query;
+    }
+
     public function executeReport($reportId, $runtimeConfig = [])
     {
         error_log("ReportBuilderService::executeReport - ID: {$reportId}");
@@ -626,7 +700,7 @@ class ReportBuilderService
         $orphanedChildren = []; // parentId => [child1, child2, ...]
         
         // Datasets that return Child Rows (flattened) instead of Aggregated Parents
-        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku', 'pending_fulfillment_by_variant']);  
+        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku', 'pending_fulfillment_by_variant', 'payouts', 'monthly_disputes', 'pending_disputes']);  
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -743,6 +817,98 @@ class ReportBuilderService
                             $decoded['unit_margin'] = '-';
                             $decoded['unit_margin_percent'] = '-';
                         }
+                    }
+
+                    // Payouts Flattening
+                    if ($dataset === 'payouts') {
+                        // Skip parent node (Account) which lacks 'net', or malformed rows
+                        if (!isset($decoded['net'])) {
+                            continue;
+                        }
+
+                        try {
+                            $summary = $decoded['summary'] ?? [];
+                            $totalGross = 0.0;
+                            $totalFee = 0.0;
+                            
+                            // Sum Gross
+                            $grossFields = ['adjustmentsGross', 'chargesGross', 'reservedFundsGross', 'retriedPayoutsGross'];
+                            foreach ($grossFields as $f) {
+                                if (isset($summary[$f]['amount'])) {
+                                    $totalGross += (float)$summary[$f]['amount'];
+                                }
+                            }
+
+                            // Sum Fees
+                            $feeFields = ['adjustmentsFee', 'chargesFee', 'reservedFundsFee', 'retriedPayoutsFee'];
+                            foreach ($feeFields as $f) {
+                                if (isset($summary[$f]['amount'])) {
+                                    $totalFee += (float)$summary[$f]['amount'];
+                                }
+                            }
+
+                            // Net (Payout Amount)
+                            $netVal = (float)($decoded['net']['amount'] ?? 0);
+                            $currency = $decoded['net']['currencyCode'] ?? '';
+
+                            $decoded['total_gross'] = [
+                                'amount' => number_format($totalGross, 2, '.', ''),
+                                'currencyCode' => $currency
+                            ];
+                            $decoded['total_fee'] = [
+                                'amount' => number_format($totalFee, 2, '.', ''),
+                                'currencyCode' => $currency
+                            ];
+                            $decoded['total_net'] = [
+                                'amount' => number_format($netVal, 2, '.', ''),
+                                'currencyCode' => $currency
+                            ];
+                            $decoded['currency'] = $currency;
+                            
+                            // Map Date
+                            $payoutDate = $decoded['issuedAt'] ?? '';
+                            $decoded['date'] = $payoutDate;
+                            $decoded['created_at'] = $payoutDate; 
+                            $decoded['createdAt'] = $payoutDate;
+                        } catch (\Throwable $e) {
+                            error_log("ReportBuilderService::processBulkData - Payout Processing Error: " . $e->getMessage());
+                            continue;
+                        }
+                    }
+
+                    // Monthly Disputes Flattening (Raw)
+                    if ($dataset === 'monthly_disputes') {
+                        // Skip parent (Account)
+                        if (!isset($decoded['reason'])) continue; // Basic check for dispute node
+
+                        $decoded['amount_val'] = (float)($decoded['amount']['amount'] ?? 0);
+                        $decoded['currency_code'] = $decoded['amount']['currencyCode'] ?? '';
+                        $decoded['date'] = $decoded['initiatedAt'] ?? '';
+                        // Initialize aggregation keys if needed, but we'll do that in post-processing
+                    }
+
+                    // Pending Disputes Flattening (Detailed)
+                    if ($dataset === 'pending_disputes') {
+                         if (!isset($decoded['reason'])) continue;
+
+                         $decoded['amount_val'] = (float)($decoded['amount']['amount'] ?? 0);
+                         $decoded['currency'] = $decoded['amount']['currencyCode'] ?? '';
+                         
+                         $decoded['initiated_at'] = $decoded['initiatedAt'] ?? '';
+                         $decoded['date'] = $decoded['initiated_at']; // For standard sorting
+                         
+                         $decoded['evidence_due_by'] = $decoded['evidenceDueBy'] ?? '';
+                         $decoded['evidence_sent_on'] = $decoded['evidenceSentOn'] ?? '';
+                         
+                         $decoded['order_name'] = $decoded['order']['name'] ?? '';
+                         $decoded['order_date'] = $decoded['order']['createdAt'] ?? '';
+                         $decoded['email'] = $decoded['order']['email'] ?? '';
+                         $decoded['customer_name'] = $decoded['order']['customer']['displayName'] ?? '';
+                         
+                         $decoded['total_amount'] = [
+                             'amount' => number_format($decoded['amount_val'], 2, '.', ''),
+                             'currencyCode' => $decoded['currency']
+                         ];
                     }
 
                     if ($this->matchesFilters($decoded)) {
@@ -1052,7 +1218,59 @@ class ReportBuilderService
                 
                 $data = $rows;
             }
-
+        } elseif ($dataset === 'monthly_disputes') {
+             // Aggregate Disputes by Month, Status, Type, Reason
+             $grouped = [];
+             
+             foreach ($data as $row) {
+                  $date = new \DateTime($row['initiatedAt']);
+                  $month = $date->format('Y-m'); // Group by Month
+                  $monthLabel = $date->format('F Y'); // "January 2024"
+                  
+                  $status = $row['status'] ?? 'Unknown';
+                  $type = $row['type'] ?? 'Unknown';
+                  $reason = $row['reason'] ?? 'Unknown';
+                  
+                  $key = implode('|', [$month, $status, $type, $reason]);
+                  
+                  if (!isset($grouped[$key])) {
+                      $grouped[$key] = [
+                          'month_val' => $month, // For sorting
+                          'month_initiated_at' => $monthLabel,
+                          'status' => $status,
+                          'type' => $type,
+                          'reason' => $reason,
+                          'total_disputes' => 0,
+                          'total_amount_val' => 0.0,
+                          'currency' => $row['currency_code'] ?? 'USD'
+                      ];
+                  }
+                  
+                  $grouped[$key]['total_disputes']++;
+                  $grouped[$key]['total_amount_val'] += ($row['amount_val'] ?? 0);
+             }
+             
+             // Sort by Month Desc
+             uasort($grouped, function($a, $b) {
+                 return $b['month_val'] <=> $a['month_val'];
+             });
+             
+             $rows = [];
+             foreach ($grouped as $g) {
+                 $rows[] = [
+                     'month_initiated_at' => $g['month_initiated_at'],
+                     'status' => $g['status'],
+                     'type' => $g['type'],
+                     'reason' => $g['reason'],
+                     'total_disputes' => $g['total_disputes'],
+                     'total_amount' => [
+                         'amount' => number_format($g['total_amount_val'], 2, '.', ''),
+                         'currencyCode' => $g['currency']
+                     ]
+                 ];
+             }
+             $data = $rows;
+             
         } elseif ($dataset === 'pending_fulfillment_by_variant') {
              // Aggregate by Variant ID
              $byVariant = [];

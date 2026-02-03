@@ -1078,8 +1078,8 @@ class ReportController extends Controller
         $transactionReports = [
             'all_transactions', 'failed_transactions', 'gift_card_transactions', 'gift_card_trans_time', 
             'trans_monthly_gateway', 'trans_monthly_user', 'paypal_recon', 'pending_trans', 
-            'total_trans_value_time', 'total_trans_value_gateway', 'volume_gateway', 'monthly_disputes', 
-            'pending_disputes', 'payout_details', 'pending_payouts', 'monthly_fees', 'fee_details',
+            'total_trans_value_time', 'total_trans_value_gateway', 'volume_gateway', 
+            'payout_details', 'pending_payouts', 'monthly_fees', 'fee_details',
             'active_gift_cards', 'gift_cards_app', 'gift_cards_source', 'gift_cards_user', 'gift_cards_val_user',
             'payout_summary'
         ];
@@ -1095,6 +1095,36 @@ class ReportController extends Controller
                 ]
             ];
         }
+
+        // Specific Payout Summary Report
+        $reports['payout_summary'] = [
+            'name' => 'Payout summary',
+            'description' => 'Summary of payouts including gross, fee, and net amounts',
+            'config' => [
+                'dataset' => 'payouts',
+                'columns' => ['date', 'id', 'currency', 'status', 'total_gross', 'total_fee', 'total_net']
+            ]
+        ];
+
+        // Specific Monthly Disputes Report
+        $reports['monthly_disputes'] = [
+            'name' => 'Monthly disputes',
+            'description' => 'Disputes grouped by month, status, type and reason',
+            'config' => [
+                'dataset' => 'monthly_disputes',
+                'columns' => ['month_initiated_at', 'status', 'type', 'reason', 'total_disputes', 'total_amount']
+            ]
+        ];
+
+        // Specific Pending Disputes Report (Detail View)
+        $reports['pending_disputes'] = [
+            'name' => 'Pending disputes',
+            'description' => 'Detailed list of disputes with order and evidence status',
+            'config' => [
+                'dataset' => 'pending_disputes', // uses same query builder as monthly_disputes but different processing
+                'columns' => ['initiated_at', 'id', 'status', 'type', 'reason', 'evidence_due_by', 'evidence_sent_on', 'order_name', 'order_date', 'email', 'customer_name', 'total_amount']
+            ]
+        ];
 
         // 5. Draft Orders
         $reports['pending_drafts'] = [

@@ -2405,7 +2405,30 @@ $baseUrl = rtrim($appUrl, '/');
                     'total_quantity': { label: 'Total Quantity' },
                     'sku': { label: 'SKU' },
                     'total_inventory_value': { label: 'Total inventory value', formatter: val => formatMoney(val) },
-                    'total_inventory_cost': { label: 'Total inventory value (cost based)', formatter: val => formatMoney(val) }
+                    'total_inventory_cost': { label: 'Total inventory value (cost based)', formatter: val => formatMoney(val) },
+
+                    // Payout Summary specific
+                    'date': { label: 'DAY Date', formatter: val => formatDate(val) },
+                    'currency': { label: 'Currency' },
+                    'total_gross': { label: 'Total gross', formatter: val => formatMoney(val) },
+                    'total_fee': { label: 'Total fee', formatter: val => formatMoney(val) },
+                    'total_net': { label: 'Total net', formatter: val => formatMoney(val) },
+
+                    // Monthly Disputes specific
+                    'month_initiated_at': { label: 'MONTH Initiated at' },
+                    'total_disputes': { label: 'Total disputes' },
+                    'total_amount': { label: 'Total amount', formatter: val => formatMoney(val) },
+                    'reason': { label: 'Reason' },
+                    'type': { label: 'Type' },
+
+                    // Pending Disputes specific
+                    'initiated_at': { label: 'DAY Initiated at', formatter: val => formatDate(val) },
+                    'evidence_due_by': { label: 'DAY Evidence due by', formatter: val => formatDate(val) },
+                    'evidence_sent_on': { label: 'DAY Evidence sent on', formatter: val => formatDate(val) },
+                    'order_name': { label: 'Order' },
+                    'order_date': { label: 'DAY Order date', formatter: val => formatDate(val) },
+                    'customer_name': { label: 'Customer name' },
+                    'email': { label: 'Email' }
         };
 
         // Map PHP config columns to keys in data and display labels
