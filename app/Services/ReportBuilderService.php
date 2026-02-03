@@ -51,9 +51,11 @@ class ReportBuilderService
             case 'customers_by_country':
                 return $this->buildCustomersQuery($filters, $columns, $groupBy, $aggregations);
             case 'transactions':
-                return $this->buildTransactionsQuery($filters, $columns, $groupBy, $aggregations);
+                return $this->buildTransactionsQueryFixed($filters, $columns, $groupBy, $aggregations);
             case 'inventory_levels':
-                return $this->buildInventoryLevelsQuery($filters, $columns, $groupBy, $aggregations);
+                return $this->buildInventoryLevelsQueryFixed($filters, $columns, $groupBy, $aggregations);
+            case 'markets':
+                return $this->buildMarketsQuery($filters, $columns, $groupBy, $aggregations);
             case 'draft_orders':
                 return $this->buildDraftOrdersQuery($filters, $columns, $groupBy, $aggregations);
             case 'line_items':
@@ -146,6 +148,43 @@ class ReportBuilderService
         $query .= " } } } }";
         
         return $query;
+    }
+
+    private function buildTransactionsQueryFixed($filters, $columns, $groupBy, $aggregations)
+    {
+        // Transactions must be fetched via Orders in Admin API
+        $searchQuery = $this->buildSearchQuery($filters, ['id', 'status', 'created_at']);
+        
+        // We filter orders, not transactions directly (mostly)
+        // If sorting/filtering by transaction date is needed, it's complex via API, so we fetch recent orders.
+        $args = "first: 250, query: \"status:any\"";
+        if (!empty($searchQuery)) {
+             $args = "first: 250, query: \"" . addslashes($searchQuery) . "\"";
+        }
+        
+        $query = "query { orders($args) { edges { node { id name email ";
+        
+        // Fetch nested transactions
+        $query .= "transactions { id kind status amountSet { shopMoney { amount currencyCode } } createdAt gateway test parentTransaction { id } }";
+        
+        $query .= " } } } }";
+        
+        return $query;
+    }
+
+    private function buildInventoryLevelsQueryFixed($filters, $columns, $groupBy, $aggregations)
+    {
+         $query = "query { inventoryLevels(first: 250) { edges { node { id available updatedAt location { id name } inventoryItem { id sku } } } } }";
+         return $query;
+    }
+
+    private function buildMarketsQuery($filters, $columns, $groupBy, $aggregations)
+    {
+         // We query Markets and their regions. Only Countries supported for now in this report.
+         // Nested Pagination for regions (first: 250) handled by Bulk API? 
+         // Usually Bulk API flattens 1 level of nesting if it's a Connection.
+         $query = "query { markets(first: 250) { edges { node { id name primary enabled regions(first: 250) { edges { node { id name ... on MarketRegionCountry { code } } } } } } } }";
+         return $query;
     }
 
     private function buildProductsQuery($filters, $columns, $groupBy, $aggregations, $dataset = '')
@@ -513,13 +552,16 @@ class ReportBuilderService
         }
 
         // shopifyPaymentsAccount -> disputes
-        $query = "query { shopifyPaymentsAccount { id disputes($args) { edges { node { ";
+        // Note: We remove 'id' from shopifyPaymentsAccount as it sometimes triggers access issues if not strictly needed
+        $query = "query { shopifyPaymentsAccount { disputes($args) { edges { node { ";
         
         $fields = ['id', 'initiatedAt', 'status', 'type', 'reason', 'amount { amount currencyCode }'];
         
         // Extended fields for 'Pending Disputes' detail view
         $fields[] = 'evidenceDueBy';
         $fields[] = 'evidenceSentOn';
+        // Note: Accessing Order > Customer might be restricted depending on granular permissions, 
+        // but read_orders + read_customers should be enough.
         $fields[] = 'order { name createdAt email customer { displayName } }';
 
         $query .= implode(' ', $fields);
@@ -656,6 +698,47 @@ class ReportBuilderService
 
         $bulkOpModel->update($operation['id'], ['status' => $currentStatus]);
 
+        if (in_array($currentStatus, ['FAILED', 'EXPIRED', 'CANCELED'])) {
+            $errorCode = $node['errorCode'] ?? 'Unknown Error';
+            $errorMsg = "Bulk Operation failed. Status: $currentStatus, Code: $errorCode";
+            
+            // Graceful handling for Shopify Payments restrictions (store doesn't have it enabled)
+            if ($errorCode === 'ACCESS_DENIED' && in_array($operation['operation_type'], ['payouts', 'monthly_disputes', 'pending_disputes'])) {
+                 error_log("ReportBuilderService::processBulkOperationResult - ACCESS_DENIED for {$operation['operation_type']}. Assuming feature disabled on store. Returning empty set.");
+                 $this->saveResult($reportId, []); // Save empty result
+                 $bulkOpModel->update($operation['id'], ['status' => 'COMPLETED']); // Mark as completed to stop retries
+                 return true;
+            }
+
+            if ($errorCode === 'ACCESS_DENIED') {
+                $grantedScopes = $this->shopifyService->getGrantedAccessScopes();
+                $grantedStr = is_array($grantedScopes) ? implode(', ', $grantedScopes) : 'Could not fetch scopes';
+                $opType = $operation['operation_type'] ?? '';
+                
+                $neededScope = '';
+                if (in_array($opType, ['monthly_disputes', 'pending_disputes', 'payouts'])) {
+                    $neededScope = 'read_shopify_payments_disputes';
+                } elseif ($opType === 'markets') {
+                    $neededScope = 'read_markets';
+                }
+                
+                $hasScope = $neededScope && is_array($grantedScopes) && in_array($neededScope, $grantedScopes);
+                
+                if ($neededScope && !$hasScope) {
+                     $errorMsg .= ". Re-authorization required. Needed: $neededScope. Current: [$grantedStr]";
+                } elseif ($neededScope === 'read_shopify_payments_disputes') {
+                     // Scope present but denied -> Feature disabled
+                     $errorMsg .= ". Access Denied even with correct scopes. Ensure 'Shopify Payments' is enabled and active on this store.";
+                } else {
+                     $errorMsg .= ". Access Denied. Check permissions. Scope '$neededScope' is present? " . ($hasScope ? 'Yes' : 'No');
+                }
+                error_log("ReportBuilderService - ACCESS_DENIED. Granted Scopes: $grantedStr");
+            }
+            
+            error_log("ReportBuilderService::processBulkOperationResult - $errorMsg");
+            throw new \Exception($errorMsg);
+        }
+
         if ($currentStatus === 'COMPLETED' && isset($node['url'])) {
             // Download and process the file
             error_log("ReportBuilderService::processBulkOperationResult - COMPLETED, downloading: {$node['url']}");
@@ -700,7 +783,7 @@ class ReportBuilderService
         $orphanedChildren = []; // parentId => [child1, child2, ...]
         
         // Datasets that return Child Rows (flattened) instead of Aggregated Parents
-        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku', 'pending_fulfillment_by_variant', 'payouts', 'monthly_disputes', 'pending_disputes']);  
+        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku', 'pending_fulfillment_by_variant', 'payouts', 'monthly_disputes', 'pending_disputes', 'markets']);  
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -909,6 +992,16 @@ class ReportBuilderService
                              'amount' => number_format($decoded['amount_val'], 2, '.', ''),
                              'currencyCode' => $decoded['currency']
                          ];
+                    }
+
+                    // Mapping for Markets
+                    if ($dataset === 'markets') {
+                         $decoded['market_name'] = $parentContext['name'] ?? 'Unknown Market';
+                         $decoded['is_primary'] = ($parentContext['primary'] ?? false) ? 'Yes' : 'No';
+                         $decoded['is_enabled'] = ($parentContext['enabled'] ?? false) ? 'Yes' : 'No';
+                         
+                         $decoded['region'] = $decoded['name'] ?? '';
+                         $decoded['country_code'] = $decoded['code'] ?? '';
                     }
 
                     if ($this->matchesFilters($decoded)) {

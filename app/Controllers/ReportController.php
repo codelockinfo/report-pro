@@ -708,16 +708,10 @@ class ReportController extends Controller
             }
             for ($i = 0; $i < 20; $i++) {
                 sleep(1); // Wait 1s
-                try {
-                    $isComplete = $reportBuilder->processBulkOperationResult($operationId, $id);
-                    if ($isComplete) {
-                        error_log("ReportController::run - Operation completed and processed within timeout.");
-                        $status = 'COMPLETED';
-                        break;
-                    }
-                } catch (\Throwable $e) {
-                    error_log("ReportController::run - Polling error: " . $e->getMessage());
-                    // Continue polling? Or break? If checking status failed, maybe just break.
+                $isComplete = $reportBuilder->processBulkOperationResult($operationId, $id);
+                if ($isComplete) {
+                    error_log("ReportController::run - Operation completed and processed within timeout.");
+                    $status = 'COMPLETED';
                     break;
                 }
             }
@@ -1136,6 +1130,16 @@ class ReportController extends Controller
             ]
         ];
 
+        // 6. Markets
+        $reports['markets'] = [
+            'name' => 'Markets',
+            'description' => 'List of markets and their regions/countries',
+            'config' => [
+                'dataset' => 'markets',
+                'columns' => ['market_name', 'is_primary', 'is_enabled', 'region', 'country_code']
+            ]
+        ];
+
         return $reports;
     }
 
@@ -1143,6 +1147,7 @@ class ReportController extends Controller
     {
         return [
             'customers' => 'Customers',
+            'markets' => 'Markets',
             'customers_country' => 'Total customers per country',
             'all_products' => 'All products',
             'products_type' => 'Total products by type',
