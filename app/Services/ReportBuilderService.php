@@ -464,7 +464,7 @@ class ReportBuilderService
         // For Bulk API, we fetch lineItems under orders
         // Fetch ALL orders (status:any) to ensure full history
         $query = "query { orders(query: \"status:any\") { edges { node { id name createdAt ";
-        $query .= "lineItems { edges { node { id title quantity sku variant { id title product { title productType } } taxLines { priceSet { shopMoney { amount } } } priceSet { shopMoney { amount currencyCode } } vendor } } } } } } }";
+        $query .= "lineItems { edges { node { id title quantity sku variant { id title product { title productType } } taxLines { priceSet { shopMoney { amount } } } originalUnitPriceSet { shopMoney { amount currencyCode } } vendor } } } } } } }";
         
         return $query;
     }

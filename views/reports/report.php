@@ -2371,6 +2371,7 @@ $baseUrl = rtrim($appUrl, '/');
                             if (val && typeof val === 'object' && val.amount !== undefined) return formatMoney(val);
                             if (row.priceRangeV2) return formatMoney(row.priceRangeV2.minVariantPrice);
                             if (row.priceSet) return formatMoney(row.priceSet.shopMoney);
+                            if (row.originalUnitPriceSet) return formatMoney(row.originalUnitPriceSet.shopMoney);
                             return formatMoney(val);
                         }
                     },

@@ -610,6 +610,13 @@ class ReportController extends Controller
         }
 
 
+        // AUTO-PATCH: Rename 'Pending Fulfillment' to 'Items pending fulfillment'
+        if ($report['category'] === 'pending_fulfillment' && $report['name'] === 'Pending Fulfillment') {
+             error_log("ReportController::run - Auto-patching report name for items pending fulfillment");
+             $reportModel->update($id, ['name' => 'Items pending fulfillment']);
+             $report['name'] = 'Items pending fulfillment';
+        }
+
         try {
             error_log("ReportController::run - Creating ShopifyService");
             $shopifyService = new \App\Services\ShopifyService(
@@ -929,11 +936,11 @@ class ReportController extends Controller
         ];
 
         $reports['pending_fulfillment'] = [
-            'name' => 'Pending Fulfillment',
+            'name' => 'Items pending fulfillment',
             'description' => 'List of line items waiting for fulfillment',
             'config' => [
                 'dataset' => 'line_items',
-                'columns' => ['id', 'title', 'quantity', 'sku', 'vendor'],
+                'columns' => ['image', 'id', 'title', 'quantity', 'sku', 'vendor'],
                 'filters' => [['field' => 'fulfillment_status', 'operator' => '!=', 'value' => 'fulfilled']]
             ]
         ];
