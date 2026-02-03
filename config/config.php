@@ -14,7 +14,7 @@ return [
     'shopify' => [
         'api_key' => getenv('SHOPIFY_API_KEY') ?: '',
         'api_secret' => getenv('SHOPIFY_API_SECRET') ?: '',
-        'scopes' => 'read_orders,read_products,read_customers,read_inventory,read_analytics,read_draft_orders,read_marketing_events,read_price_rules,read_discounts,read_shopify_payments_payouts,read_files,read_shopify_payments_disputes,read_markets',
+        'scopes' => 'read_orders,read_all_orders,read_products,read_customers,read_inventory,read_analytics,read_draft_orders,read_marketing_events,read_price_rules,read_discounts,read_shopify_payments_payouts,read_files,read_shopify_payments_disputes,read_markets',
         'redirect_uri' => getenv('SHOPIFY_REDIRECT_URI') ?: 'https://reportpro.codelocksolutions.com/auth/callback',
         'api_version' => '2024-01',
         'app_type' => 'public', // Public app - can be installed by any merchant

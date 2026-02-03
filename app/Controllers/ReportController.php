@@ -670,7 +670,13 @@ class ReportController extends Controller
             }
             
             // CRITICAL FIX: Convert start_date/end_date from query params to filters
-            if (isset($_GET['start_date']) && isset($_GET['end_date'])) {
+            // EXCEPTION: For pending fulfillment reports, ignore date filters
+            // These reports should show ALL currently pending items regardless of order creation date
+            $dataset = $config['dataset'] ?? '';
+            $isPendingFulfillmentReport = in_array($dataset, ['pending_fulfillment_by_variant', 'line_items']) && 
+                                           ($report['category'] === 'pending_fulfillment' || $report['name'] === 'Items pending fulfillment');
+            
+            if (isset($_GET['start_date']) && isset($_GET['end_date']) && !$isPendingFulfillmentReport) {
                 $startDate = $_GET['start_date'];
                 $endDate = $_GET['end_date'];
                 
@@ -689,6 +695,8 @@ class ReportController extends Controller
                         'value' => $endDate
                     ]
                 ];
+            } elseif ($isPendingFulfillmentReport) {
+                error_log("ReportController::run - Skipping date filters for pending fulfillment report");
             }
             
             if (isset($_GET['filters'])) {
@@ -939,9 +947,9 @@ class ReportController extends Controller
             'name' => 'Items pending fulfillment',
             'description' => 'List of line items waiting for fulfillment',
             'config' => [
-                'dataset' => 'line_items',
-                'columns' => ['image', 'id', 'title', 'quantity', 'sku', 'vendor'],
-                'filters' => [['field' => 'fulfillment_status', 'operator' => '!=', 'value' => 'fulfilled']]
+                'dataset' => 'pending_fulfillment_by_variant',
+                'columns' => ['order_date', 'order_name', 'vendor', 'product_title', 'variant_title', 'inventory_quantity', 'quantity_pending_fulfillment'],
+                'filters' => []
             ]
         ];
         // 2. Products / Inventory Reports (Dataset: products)

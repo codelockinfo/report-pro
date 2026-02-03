@@ -2400,7 +2400,7 @@ $baseUrl = rtrim($appUrl, '/');
                     'sessions_count': { label: 'Sessions', formatter: val => val ? val.toLocaleString() : '0' },
                     
                     // Products By Type specific
-                    'product_title': { label: 'Product Title' },
+                    'product_title': { label: 'Product name' },
                     'product_type': { label: 'Product Type' },
                     'total_variants': { label: 'Total Variants' },
                     'total_quantity': { label: 'Total Quantity' },
@@ -2427,9 +2427,15 @@ $baseUrl = rtrim($appUrl, '/');
                     'evidence_due_by': { label: 'DAY Evidence due by', formatter: val => formatDate(val) },
                     'evidence_sent_on': { label: 'DAY Evidence sent on', formatter: val => formatDate(val) },
                     'order_name': { label: 'Order' },
-                    'order_date': { label: 'DAY Order date', formatter: val => formatDate(val) },
+                    'order_date': { label: 'DAY Date', formatter: val => formatDate(val) },
                     'customer_name': { label: 'Customer name' },
-                    'email': { label: 'Email' }
+                    'email': { label: 'Email' },
+                    
+                    // Pending Fulfillment specific
+                    'vendor': { label: 'Vendor' },
+                    'variant_title': { label: 'Variant name' },
+                    'inventory_quantity': { label: 'Inventory quantity' },
+                    'quantity_pending_fulfillment': { label: 'SUM Quantity pending fulfillment' }
         };
 
         // Map PHP config columns to keys in data and display labels
@@ -2470,6 +2476,12 @@ $baseUrl = rtrim($appUrl, '/');
                         val = row.createdAt || row.created_at;
                 } else if (col.id === 'updated_at') {
                         val = row.updatedAt || row.updated_at;
+                } else if (col.id === 'order_date') {
+                        val = row.order_date || row.createdAt || row.created_at;
+                } else if (col.id === 'order_name') {
+                        val = row.order_name || row.name;
+                } else if (col.id === 'vendor') {
+                        val = row.vendor;
                 } else {
                         val = row[col.id];
                         if (val === undefined) val = row[col.key];

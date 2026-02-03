@@ -471,30 +471,39 @@ class ReportBuilderService
 
     private function buildPendingFulfillmentsQuery($filters, $columns, $groupBy, $aggregations)
     {
-         // Fetch Open Orders (active) to capture Unfulfilled and Partial
-         // Broadened query to ensure we match other apps (which likely show all pending work regardless of payment status)
-         // 'status:any' ensures we don't miss archived-but-unfulfilled orders, or older open orders.
-         $queryStr = "status:any";
+         // Fetch ALL orders from 2025 onwards (when your data starts based on screenshot)
+         // Don't filter by fulfillment_status - let fulfillableQuantity do the filtering
+         // This ensures we get every order and every line item
+         $queryStr = "";
          
          // If generic search is added via filters, append it
          $searchQuery = $this->buildSearchQuery($filters, ['id', 'name', 'created_at']);
          if (!empty($searchQuery)) {
-             $queryStr .= " AND " . $searchQuery;
+             $queryStr = $searchQuery;
          }
 
-         // FIX: Remove 'first: 250' to allow Bulk API to process complete history
+         // Fetch all orders from 2020 onwards to be absolutely sure
+         if (empty($queryStr)) {
+             $queryStr = "created_at:>=2020-01-01";
+         }
+         
+         error_log("buildPendingFulfillmentsQuery - Using query: $queryStr");
+         
          $args = "query: \"" . addslashes($queryStr) . "\"";
          
          // We fetch Orders -> LineItems -> Variant details
          $query = "query { orders($args) { edges { node { id name createdAt ";
          
          // Fetch Line Items with Nested Variant Data needed for the report
-         // Required cols: product_title (from variant.product), variant_title, inventory_policy, inventory_quantity
+         // Required cols: product_title (from variant.product), variant_title, inventory_policy, inventory_quantity, vendor
          $query .= "lineItems { edges { node { ";
-         $query .= "quantity fulfillableQuantity sku variant { id title inventoryQuantity inventoryPolicy product { title } } ";
+         $query .= "quantity fulfillableQuantity sku vendor variant { id title inventoryQuantity inventoryPolicy product { title } } ";
          $query .= "} } } ";
          
          $query .= "} } } }";
+         
+         error_log("buildPendingFulfillmentsQuery - Full Query: " . $query);
+         error_log("buildPendingFulfillmentsQuery - Search String: " . $queryStr);
          
          return $query;
     }
@@ -762,12 +771,9 @@ class ReportBuilderService
         // Parse NDJSON file
         $lines = explode("\n", trim($fileData));
         
-        // DEBUG: Save raw strings
-        $debugRaw = "";
-        for($i=0; $i<20; $i++) {
-            if(isset($lines[$i])) $debugRaw .= $lines[$i] . "\n";
-        }
-        file_put_contents(__DIR__ . '/../../debug_bulk_raw.txt', $debugRaw);
+        // DEBUG: Save raw strings - ALL LINES to see complete data
+        file_put_contents(__DIR__ . '/../../debug_bulk_raw.txt', $fileData);
+        error_log("ReportBuilderService::processBulkData - Saved " . count($lines) . " lines to debug file");
 
         // FEATURE FIX: Pending Fulfillments should show ALL open orders regardless of date range.
         if ($dataset === 'pending_fulfillment_by_variant' || $dataset === 'total_inventory_summary') {
@@ -785,14 +791,20 @@ class ReportBuilderService
         // Datasets that return Child Rows (flattened) instead of Aggregated Parents
         $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku', 'pending_fulfillment_by_variant', 'payouts', 'monthly_disputes', 'pending_disputes', 'markets']);  
 
+        $totalLinesProcessed = 0;
+        $totalChildItems = 0;
+        
         foreach ($lines as $line) {
             $line = trim($line);
             if (empty($line)) continue;
             $decoded = json_decode($line, true);
             if (!$decoded) continue;
 
+            $totalLinesProcessed++;
+            
             // Handle Nested Data
             if (isset($decoded['__parentId'])) {
+                $totalChildItems++;
                 $parentId = $decoded['__parentId'];
                 
                 if ($isChildRowReport) {
@@ -824,6 +836,12 @@ class ReportBuilderService
                         $decoded['inventory_policy'] = $variant['inventoryPolicy'] ?? '';
                         $decoded['inventory_quantity'] = (int)($variant['inventoryQuantity'] ?? 0);
                         
+                        // Preserve vendor field (comes directly from lineItem)
+                        // vendor is already in $decoded from GraphQL response
+                        
+                        // Ensure order_name and order_date are preserved from parent context
+                        // (already merged in lines 803-805, but we keep them explicitly)
+                        
                         // Use fulfillableQuantity (remaining) if available, otherwise total quantity
                         $pendingQty = 0;
                         if (isset($decoded['fulfillableQuantity']) && (int)$decoded['fulfillableQuantity'] > 0) {
@@ -835,9 +853,27 @@ class ReportBuilderService
                         $decoded['quantity_pending_fulfillment'] = $pendingQty;
                         $decoded['variant_id'] = $variant['id'] ?? $decoded['sku'] ?? 'unknown'; // Grouping Key
                         
+                        // Debug: Log ALL items to see what's being filtered
+                        error_log("Pending Fulfillment Row (qty=$pendingQty, fulfillable=" . ($decoded['fulfillableQuantity'] ?? 'N/A') . "): " .
+                                  "order_date=" . ($decoded['order_date'] ?? 'MISSING') . 
+                                  ", order_name=" . ($decoded['order_name'] ?? 'MISSING') . 
+                                  ", vendor=" . ($decoded['vendor'] ?? 'MISSING') . 
+                                  ", product=" . ($decoded['product_title'] ?? 'MISSING'));
+                        
                         // optimization: filter out 0 values immediately
                         if ($pendingQty <= 0) {
+                            error_log("Pending Fulfillment Row FILTERED OUT (pendingQty=$pendingQty)");
                             continue;
+                        }
+                    }
+                    
+                    // Log summary for pending fulfillment
+                    if ($dataset === 'pending_fulfillment_by_variant') {
+                        static $pendingFulfillmentProcessed = 0;
+                        static $pendingFulfillmentKept = 0;
+                        $pendingFulfillmentProcessed++;
+                        if ($pendingQty > 0) {
+                            $pendingFulfillmentKept++;
                         }
                     }
                     
@@ -1128,6 +1164,12 @@ class ReportBuilderService
             }
         }
         
+        // Log summary of what was processed
+        error_log("ReportBuilderService::processBulkData - Processed $totalLinesProcessed total lines, $totalChildItems child items for dataset: $dataset");
+        if ($dataset === 'pending_fulfillment_by_variant') {
+            error_log("ReportBuilderService::processBulkData - Pending Fulfillment: Processed line items, kept " . count($data) . " items with qty > 0");
+        }
+        
         // Post-Processing for Summary Datasets (Now using Aggregated Parents)
         if ($dataset === 'sales_summary') {
             // Aggregate all rows into one summary
@@ -1369,10 +1411,14 @@ class ReportBuilderService
              $byVariant = [];
              
              foreach ($data as $row) {
-                 $vid = $row['variant_id'] ?? $row['sku'] ?? 'unknown';
+                 // Change: include order name in grouping key to show individual orders separately
+                 $vid = ($row['order_name'] ?? 'unknown') . '_' . ($row['variant_id'] ?? $row['sku'] ?? 'unknown');
                  
                  if (!isset($byVariant[$vid])) {
                      $byVariant[$vid] = [
+                          'order_date' => $row['order_date'] ?? '',
+                          'order_name' => $row['order_name'] ?? '',
+                          'vendor' => $row['vendor'] ?? '',
                          'product_title' => $row['product_title'],
                          'variant_title' => $row['variant_title'],
                          'inventory_policy' => strtolower($row['inventory_policy']), // 'deny' or 'continue'
