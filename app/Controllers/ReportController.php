@@ -617,6 +617,20 @@ class ReportController extends Controller
              $report['name'] = 'Items pending fulfillment';
         }
 
+        // AUTO-PATCH: Fix Line Item Details report to remove image column and ensure correct columns
+        if (($report['category'] === 'line_items' || $report['name'] === 'Line Item Details') && $config['dataset'] === 'line_items') {
+             $expectedColumns = ['order_date', 'order_name', 'customer_name', 'product_name', 'variant_name', 'quantity', 'total_gross_sales', 'total_discounts', 'total_refunds', 'total_net_sales'];
+             $currentColumns = $config['columns'] ?? [];
+             
+             // Check if columns need updating (has 'image' or doesn't match expected)
+             if (in_array('image', $currentColumns) || $currentColumns !== $expectedColumns) {
+                  error_log("ReportController::run - Auto-patching Line Item Details report {$id} to remove image column");
+                  $config['columns'] = $expectedColumns;
+                  $reportModel->update($id, ['query_config' => json_encode($config)]);
+                  $report = $reportModel->find($id);
+             }
+        }
+
         try {
             error_log("ReportController::run - Creating ShopifyService");
             $shopifyService = new \App\Services\ShopifyService(
@@ -673,7 +687,7 @@ class ReportController extends Controller
             // EXCEPTION: For pending fulfillment reports, ignore date filters
             // These reports should show ALL currently pending items regardless of order creation date
             $dataset = $config['dataset'] ?? '';
-            $isPendingFulfillmentReport = in_array($dataset, ['pending_fulfillment_by_variant', 'line_items']) && 
+            $isPendingFulfillmentReport = ($dataset === 'pending_fulfillment_by_variant') && 
                                            ($report['category'] === 'pending_fulfillment' || $report['name'] === 'Items pending fulfillment');
             
             if (isset($_GET['start_date']) && isset($_GET['end_date']) && !$isPendingFulfillmentReport) {
@@ -711,8 +725,8 @@ class ReportController extends Controller
 
             // Poll for completion (max 20 seconds) to avoid PHP timeouts
             $status = 'PENDING';
-            // DIRECT mode completes immediately (no bulk operation/polling)
-            if (is_string($operationId) && strpos($operationId, 'DIRECT:') === 0) {
+            // DIRECT/REST mode completes immediately (no bulk operation/polling)
+            if (is_string($operationId) && (strpos($operationId, 'DIRECT:') === 0 || strpos($operationId, 'REST:') === 0)) {
                 $status = 'COMPLETED';
                 $this->json([
                     'success' => true,
@@ -808,6 +822,13 @@ class ReportController extends Controller
             $data = array_slice($data, 0, 1);
         }
 
+        // Safety filter for monthly_cohorts
+        if (($config['dataset'] ?? '') === 'monthly_cohorts') {
+            $data = array_values(array_filter($data, function($row) {
+                return !empty($row['month_first_order_date']) && $row['month_first_order_date'] !== 'Unknown' && ($row['total_customers'] ?? 0) > 0;
+            }));
+        }
+
         $this->json([
             'data' => $data,
             'total' => count($data),
@@ -890,6 +911,38 @@ class ReportController extends Controller
             ];
         }
 
+        // Specific monthly cohorts report
+        $reports['monthly_cohorts'] = [
+            'name' => 'Monthly cohorts',
+            'description' => 'Customer retention and value by first order month',
+            'config' => [
+                'dataset' => 'monthly_cohorts',
+                'columns' => ['month_first_order_date', 'total_customers', 'total_orders', 'average_orders_per_customer', 'total_sales', 'average_spend_per_customer']
+            ]
+        ];
+
+        // Specific Monthly Sales report
+        $reports['monthly_sales'] = [
+            'name' => 'Monthly sales',
+            'description' => 'Monthly sales breakdown with detailed metrics',
+            'config' => [
+                'dataset' => 'monthly_sales',
+                'columns' => [
+                    'month_date', 
+                    'total_orders', 
+                    'total_gross_sales', 
+                    'total_discounts', 
+                    'total_refunds', 
+                    'total_net_sales', 
+                    'total_taxes', 
+                    'total_shipping', 
+                    'total_sales', 
+                    'total_cost_of_goods_sold', 
+                    'total_gross_margin'
+                ]
+            ]
+        ];
+
         // Specific Browser Share
         $reports['browser_share'] = [
             'name' => 'Browser Share',
@@ -939,7 +992,7 @@ class ReportController extends Controller
             'description' => 'Detailed report of all order line items',
             'config' => [
                 'dataset' => 'line_items',
-                'columns' => ['id', 'title', 'quantity', 'price', 'sku', 'vendor']
+                'columns' => ['order_date', 'order_name', 'customer_name', 'product_name', 'variant_name', 'quantity', 'total_gross_sales', 'total_discounts', 'total_refunds', 'total_net_sales']
             ]
         ];
 

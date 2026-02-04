@@ -193,6 +193,19 @@ $baseUrl = rtrim($appUrl, '/');
     }
     
     /* Control Bar */
+    .summary-row {
+        font-weight: 700 !important;
+        background-color: #f1f2f3 !important;
+        border-top: 2px solid #6d7175 !important;
+        border-bottom: 2px solid #6d7175 !important;
+    }
+    .summary-row td {
+        font-weight: 700 !important;
+        color: #202223 !important;
+        border-top: 2px solid #6d7175 !important;
+        border-bottom: 2px solid #6d7175 !important;
+    }
+    
     .control-bar {
         background: white;
         border-bottom: 1px solid #e1e3e5;
@@ -723,6 +736,7 @@ $baseUrl = rtrim($appUrl, '/');
                 <tbody id="table-body">
                     <tr><td colspan="100%" style="text-align:center; padding: 20px; color: #6d7175;">Loading data...</td></tr>
                 </tbody>
+                <tfoot id="table-footer"></tfoot>
             </table>
             <div class="footer-count" id="record-count"></div>
         </div>
@@ -1389,6 +1403,7 @@ $baseUrl = rtrim($appUrl, '/');
         echo json_encode($config['columns'] ?? []); 
     ?>;
     const visualType = "<?= $config['visual_type'] ?? 'table' ?>";
+    const datasetType = "<?= $config['dataset'] ?? '' ?>";
 
     // Helper for fetch with shop and host params
     function shopFetch(url, options = {}) {
@@ -2435,7 +2450,20 @@ $baseUrl = rtrim($appUrl, '/');
                     'vendor': { label: 'Vendor' },
                     'variant_title': { label: 'Variant name' },
                     'inventory_quantity': { label: 'Inventory quantity' },
-                    'quantity_pending_fulfillment': { label: 'SUM Quantity pending fulfillment' }
+                    'quantity_pending_fulfillment': { label: 'SUM Quantity pending fulfillment' },
+                    
+                    // Line Items specific
+                    'product_name': { label: 'Product name' },
+                    'variant_name': { label: 'Variant name' },
+                    'month_date': { label: 'MONTH Date' },
+
+                    // Monthly Cohorts specific
+                    'month_first_order_date': { label: 'MONTH Order Customer first order date', formatter: val => val || 'Unknown' },
+                    'total_customers': { label: 'Total customers', formatter: val => val || 0 },
+                    'total_orders': { label: 'Total orders', formatter: val => val || 0 },
+                    'average_orders_per_customer': { label: 'Average orders per customer', formatter: val => val || '0.00' },
+                    'total_sales': { label: 'Total sales', formatter: val => formatMoney(val) },
+                    'average_spend_per_customer': { label: 'Average spend per customer', formatter: val => formatMoney(val) }
         };
 
         // Map PHP config columns to keys in data and display labels
@@ -2468,7 +2496,13 @@ $baseUrl = rtrim($appUrl, '/');
         let lastProductTitle = '';
         
         tbody.innerHTML = rows.map(row => {
-            const currentRowHtml = '<tr>' + activeColumns.map((col, index) => {
+            const rowLabel = (row.month_date || row.month_first_order_date || '').toString().toUpperCase();
+            const isSummary = row.is_summary === true || 
+                             rowLabel.includes('TOTAL') || 
+                             rowLabel.includes('SUMMARY');
+            
+            const trClass = isSummary ? 'summary-row' : '';
+            const currentRowHtml = `<tr class="${trClass}">` + activeColumns.map((col, index) => {
                 let val;
                 if (col.id === 'country') {
                         val = row.defaultAddress || row.shippingAddress;
@@ -2507,7 +2541,84 @@ $baseUrl = rtrim($appUrl, '/');
             return currentRowHtml;
         }).join('');
         
-        document.getElementById('record-count').innerText = `${rows.length} records`;
+        const actualRecords = rows.filter(r => {
+            const rLabel = (r.month_date || r.month_first_order_date || '').toString().toUpperCase();
+            return !(r.is_summary === true || 
+                   rLabel.includes('TOTAL') || 
+                   rLabel.includes('SUMMARY'));
+        });
+        document.getElementById('record-count').innerText = `${actualRecords.length} records`;
+
+        // Render Summary/Total Footer Row
+        const tfoot = document.getElementById('table-footer');
+        if (tfoot) {
+            const hasSummary = ['monthly_cohorts', 'sales_summary', 'products_by_type', 'total_inventory_summary', 'monthly_sales'].includes(datasetType);
+            
+            if (hasSummary && rows.length > 0) {
+                let totals = {};
+                
+                // Default aggregation: sum numeric-looking fields
+                activeColumns.forEach(col => {
+                    if (col.id === 'month_first_order_date' || col.id === 'month_date' || col.id === 'product_title' || col.id === 'image' || col.id === 'product_type' || col.id === 'vendor') {
+                        totals[col.id] = 'TOTAL';
+                    } else if (col.id.includes('total') || col.id === 'orders_count' || col.id === 'sessions_count' || col.id === 'quantity') {
+                        let sum = 0;
+                        let currency = '';
+                        rows.forEach(r => {
+                            const rLabel = (r.month_date || r.month_first_order_date || '').toString().toUpperCase();
+                            const isSummaryRow = r.is_summary === true || 
+                                               rLabel.includes('TOTAL') || 
+                                               rLabel.includes('SUMMARY');
+                                               
+                            if (isSummaryRow) return; // Skip subtotal rows to avoid double counting
+                            let val = r[col.id];
+                            if (val && typeof val === 'object' && val.amount) {
+                                sum += parseFloat(val.amount);
+                                currency = val.currencyCode;
+                            } else {
+                                sum += parseFloat(val || 0);
+                            }
+                        });
+                        
+                        if (currency) {
+                            totals[col.id] = { amount: sum.toFixed(2), currencyCode: currency };
+                        } else {
+                            totals[col.id] = sum % 1 === 0 ? sum : sum.toFixed(2);
+                        }
+                    } else {
+                        totals[col.id] = ''; // Skip other fields
+                    }
+                });
+
+                // Specific calculation for averages in Cohorts
+                if (datasetType === 'monthly_cohorts') {
+                    let totalCust = 0;
+                    let totalOrd = 0;
+                    let totalSales = 0;
+                    let currency = '';
+                    rows.forEach(r => {
+                        totalCust += parseInt(r.total_customers || 0);
+                        totalOrd += parseInt(r.total_orders || 0);
+                        totalSales += parseFloat(r.total_sales?.amount || 0);
+                        currency = r.total_sales?.currencyCode || currency;
+                    });
+                    
+                    totals['total_customers'] = totalCust;
+                    totals['total_orders'] = totalOrd;
+                    totals['average_orders_per_customer'] = totalCust > 0 ? (totalOrd / totalCust).toFixed(2) : '0.00';
+                    totals['total_sales'] = { amount: totalSales.toFixed(2), currencyCode: currency };
+                    totals['average_spend_per_customer'] = totalCust > 0 ? { amount: (totalSales / totalCust).toFixed(2), currencyCode: currency } : { amount: '0.00', currencyCode: currency };
+                }
+
+                tfoot.innerHTML = '<tr>' + activeColumns.map(col => {
+                    let val = totals[col.id];
+                    let displayVal = col.formatter(val ?? '', {});
+                    return `<td style="font-weight: 700; color: #202223; border-top: 2px solid #e1e3e5;">${displayVal}</td>`;
+                }).join('') + '</tr>';
+            } else {
+                tfoot.innerHTML = '';
+            }
+        }
     }
 
     // Initial load
@@ -2636,6 +2747,8 @@ $baseUrl = rtrim($appUrl, '/');
         if (!amountObj) return '0.00';
         let amount = typeof amountObj === 'object' ? amountObj.amount : amountObj;
         let currency = typeof amountObj === 'object' ? amountObj.currencyCode : '';
+        
+        if (isNaN(parseFloat(amount))) return '0.00';
         
         try {
             return new Intl.NumberFormat('en-IN', {

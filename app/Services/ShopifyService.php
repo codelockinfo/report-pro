@@ -16,6 +16,77 @@ class ShopifyService
         $this->apiVersion = $config['shopify']['api_version'];
     }
 
+    public function getApiVersion()
+    {
+        return $this->apiVersion;
+    }
+
+    /**
+     * Execute a REST API request
+     */
+    public function rest($method, $path, $params = [])
+    {
+        $url = "https://{$this->shopDomain}/admin/api/{$this->apiVersion}/" . ltrim($path, '/');
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, true); // Capture headers
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'X-Shopify-Access-Token: ' . $this->accessToken
+        ]);
+        
+        if ($method === 'GET') {
+            curl_setopt($ch, CURLOPT_HTTPGET, true);
+        } elseif ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+        } elseif ($method === 'PUT') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+        } elseif ($method === 'DELETE') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        }
+        
+        curl_setopt($ch, CURLOPT_URL, $url);
+        
+        $responseRaw = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        curl_close($ch);
+        
+        $headerStr = substr($responseRaw, 0, $headerSize);
+        $bodyStr = substr($responseRaw, $headerSize);
+        
+        if ($httpCode >= 400) {
+            error_log("Shopify REST API Error ({$httpCode}): " . $bodyStr);
+            return null;
+        }
+        
+        $headers = $this->parseHeaders($headerStr);
+        $body = json_decode($bodyStr, true);
+        
+        return [
+            'headers' => $headers,
+            'body' => $body
+        ];
+    }
+
+    private function parseHeaders($headerStr)
+    {
+        $headers = [];
+        foreach (explode("\r\n", $headerStr) as $i => $line) {
+            if ($i === 0) continue; // Skip HTTP Status line
+            if (empty($line)) continue;
+            
+            $parts = explode(': ', $line, 2);
+            if (count($parts) === 2) {
+                $headers[strtolower($parts[0])] = $parts[1];
+            }
+        }
+        return $headers;
+    }
+
     public function graphql($query, $variables = [])
     {
         $url = "https://{$this->shopDomain}/admin/api/{$this->apiVersion}/graphql.json";
