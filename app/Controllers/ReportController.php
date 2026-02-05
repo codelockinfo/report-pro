@@ -600,6 +600,90 @@ class ReportController extends Controller
              $report = $reportModel->find($id);
         }
 
+        // AUTO-PATCH: Fix Monthly Sales by Channel report
+        if (($report['category'] === 'monthly_sales_channel' || $report['name'] === 'Monthly sales by channel') && ($config['dataset'] !== 'monthly_sales_channel')) {
+             error_log("ReportController::run - Auto-patching Monthly sales by channel report {$id}");
+             $config['dataset'] = 'monthly_sales_channel';
+             $config['columns'] = [
+                 'month_date', 
+                 'channel',
+                 'total_orders', 
+                 'total_gross_sales', 
+                 'total_discounts', 
+                 'total_refunds', 
+                 'total_net_sales', 
+                 'total_taxes', 
+                 'total_shipping', 
+                 'total_sales', 
+                 'total_cost_of_goods_sold', 
+                 'total_gross_margin'
+             ];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+        // AUTO-PATCH: Fix Monthly Sales by POS location
+        if (($report['category'] === 'monthly_sales_pos_location' || $report['name'] === 'Monthly sales by POS location') && ($config['dataset'] !== 'monthly_sales_pos_location')) {
+             error_log("ReportController::run - Auto-patching Monthly sales by POS location report {$id}");
+             $config['dataset'] = 'monthly_sales_pos_location';
+             $config['columns'] = [
+                 'month_date', 
+                 'pos_location_name',
+                 'total_orders', 
+                 'total_gross_sales', 
+                 'total_discounts', 
+                 'total_refunds', 
+                 'total_net_sales', 
+                 'total_taxes', 
+                 'total_shipping', 
+                 'total_sales', 
+                 'total_cost_of_goods_sold', 
+                 'total_gross_margin'
+             ];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+
+
+        // AUTO-PATCH: Fix Monthly Sales by POS user
+        if (($report['category'] === 'monthly_sales_pos_user' || $report['name'] === 'Monthly sales by POS user') && ($config['dataset'] !== 'monthly_sales_pos_user')) {
+             error_log("ReportController::run - Auto-patching Monthly sales by POS user report {$id}");
+             $config['dataset'] = 'monthly_sales_pos_user';
+             // ... columns ...
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+
+
+        // DEBUG: Log Report Details
+        error_log("ReportController::run - Report ID: {$id}, Category: {$report['category']}, Name: {$report['name']}, Current Dataset: " . ($config['dataset'] ?? 'N/A'));
+
+        // AUTO-PATCH: Fix Monthly Sales by Product report
+        $isProductReport = ($report['category'] === 'monthly_sales_product' || stripos($report['name'], 'Monthly sales by product') !== false);
+        
+        if ($isProductReport && ($config['dataset'] !== 'monthly_sales_product')) {
+             error_log("ReportController::run - Auto-patching Monthly sales by product report {$id} - UPDATING DB");
+             $config['dataset'] = 'monthly_sales_product';
+             $config['columns'] = [
+                 'month_date', 
+                 'product_title',
+                 'total_quantity',
+                 'total_orders', 
+                 'total_gross_sales', 
+                 'total_discounts', 
+                 'total_refunds', 
+                 'total_net_sales', 
+                 'total_taxes', 
+                 'total_sales', 
+                 'total_cost_of_goods_sold', 
+                 'total_gross_margin'
+             ];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
         // AUTO-PATCH: Fix Pending Fulfillments report
         if (($report['category'] === 'pending_fulfillments_var' || $report['name'] === 'Pending fulfillments') && ($config['dataset'] !== 'pending_fulfillment_by_variant')) {
              error_log("ReportController::run - Auto-patching Pending Fulfillments report {$id}");
@@ -936,6 +1020,96 @@ class ReportController extends Controller
                     'total_net_sales', 
                     'total_taxes', 
                     'total_shipping', 
+                    'total_sales', 
+                    'total_cost_of_goods_sold', 
+                    'total_gross_margin'
+                ]
+            ]
+        ];
+
+        // Monthly sales by channel report
+        $reports['monthly_sales_channel'] = [
+            'name' => 'Monthly sales by channel',
+            'description' => 'Monthly sales breakdown by channel',
+            'config' => [
+                'dataset' => 'monthly_sales_channel',
+                'columns' => [
+                    'month_date', 
+                    'channel',
+                    'total_orders', 
+                    'total_gross_sales', 
+                    'total_discounts', 
+                    'total_refunds', 
+                    'total_net_sales', 
+                    'total_taxes', 
+                    'total_shipping', 
+                    'total_sales', 
+                    'total_cost_of_goods_sold', 
+                    'total_gross_margin'
+                ]
+            ]
+        ];
+
+        // Monthly sales by POS location report
+        $reports['monthly_sales_pos_location'] = [
+            'name' => 'Monthly sales by POS location',
+            'description' => 'Monthly sales breakdown by POS location',
+            'config' => [
+                'dataset' => 'monthly_sales_pos_location',
+                'columns' => [
+                    'month_date', 
+                    'pos_location_name',
+                    'total_orders', 
+                    'total_gross_sales', 
+                    'total_discounts', 
+                    'total_refunds', 
+                    'total_net_sales', 
+                    'total_taxes', 
+                    'total_shipping', 
+                    'total_sales', 
+                    'total_cost_of_goods_sold', 
+                    'total_gross_margin'
+                ]
+            ]
+        ];
+
+        // Monthly sales by POS user report
+        $reports['monthly_sales_pos_user'] = [
+            'name' => 'Monthly sales by POS user',
+            'description' => 'Monthly sales breakdown by POS user',
+            'config' => [
+                'dataset' => 'monthly_sales_pos_user',
+                'columns' => [
+                    'month_date', 
+                    'user_name',
+                    'total_orders', 
+                    'total_gross_sales', 
+                    'total_discounts', 
+                    'total_refunds', 
+                    'total_net_sales', 
+                    'total_taxes', 
+                    'total_shipping', 
+                    'total_sales'
+                ]
+            ]
+        ];
+
+        // Monthly sales by product report
+        $reports['monthly_sales_product'] = [
+            'name' => 'Monthly sales by product',
+            'description' => 'Monthly sales breakdown by product',
+            'config' => [
+                'dataset' => 'monthly_sales_product',
+                'columns' => [
+                    'month_date', 
+                    'product_title',
+                    'total_quantity',
+                    'total_orders', 
+                    'total_gross_sales', 
+                    'total_discounts', 
+                    'total_refunds', 
+                    'total_net_sales', 
+                    'total_taxes', 
                     'total_sales', 
                     'total_cost_of_goods_sold', 
                     'total_gross_margin'
