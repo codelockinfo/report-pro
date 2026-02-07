@@ -190,6 +190,7 @@ class ShopifyService
             ];
         }
 
+        error_log("ShopifyService::createBulkOperation - Raw Query: " . $query);
         $encodedQuery = json_encode($query);
 
         $mutation = <<<GRAPHQL

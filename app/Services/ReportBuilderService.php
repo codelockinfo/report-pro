@@ -69,6 +69,9 @@ class ReportBuilderService
             case 'monthly_sales_pos_location':
             case 'monthly_sales_pos_user':
             case 'monthly_sales_product':
+            case 'monthly_sales_product_type':
+            case 'monthly_sales_product_variant':
+            case 'monthly_sales_shipping':
                 return $this->buildSalesSummaryQuery($filters, $columns, $groupBy, $aggregations);
             case 'aov_time':
                 return $this->buildAovTimeQuery($filters, $columns, $groupBy, $aggregations);
@@ -379,7 +382,7 @@ class ReportBuilderService
     {
         // Fetch via Orders to ensure stability and context
         // Fetch ALL orders (status:any) to ensure full history
-        $query = "query { orders(query: \"status:any\") { edges { node { id name createdAt ";
+        $query = "query { orders(first: 250, query: \"status:any\") { edges { node { id name createdAt ";
         $query .= "transactions { edges { node { ";
         
         $fields = [];
@@ -621,7 +624,7 @@ class ReportBuilderService
         error_log("ReportBuilderService::executeReport - Active Filters Set: " . json_encode($this->activeFilters));
         error_log("ReportBuilderService::executeReport - Dataset: " . ($config['dataset'] ?? 'NONE'));
 
-        if (($config['dataset'] ?? '') === 'monthly_sales_product') {
+        if (in_array($config['dataset'] ?? '', ['monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant'])) {
              $query = $this->buildProductReportQuery($config['filters'] ?? [], $config['columns'] ?? []);
         } else {
              $query = $this->buildQuery($config);
@@ -1077,6 +1080,9 @@ class ReportBuilderService
 
         $totalLinesProcessed = 0;
         $totalChildItems = 0;
+        $totalParentsProcessed = 0;
+        
+        error_log("processBulkData - Starting. Dataset: {$dataset}, ReportID: {$reportId}");
         
         foreach ($lines as $line) {
             $decoded = null;
@@ -1441,7 +1447,11 @@ class ReportBuilderService
 
                      // CRITICAL FIX: For summary reports (Aggregated), we MUST NOT add child items as standalone rows even if they match filters.
                      // They must fall through to the 'else' block to be aggregated into their parents.
-                     $isSummaryReport = in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product']);
+                     $isSummaryReport = in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping']);
+                     
+                     if ($dataset === 'monthly_sales_product_variant' && ($totalChildItems % 100 === 0)) {
+                         error_log("processBulkData - Child Item seen: " . ($decoded['id'] ?? 'unknown') . " for parent " . ($parentId ?? 'none'));
+                     }
                      
                      // If it's a summary report and this node has a parent (implied by being in this block), skip standalone addition.
                      if (!$isSummaryReport && $this->matchesFilters($decoded)) {
@@ -1459,7 +1469,7 @@ class ReportBuilderService
                     if (isset($parentsMap[$parentId])) {
                         if ($dataset === 'customers' || $dataset === 'customers_by_country' || $dataset === 'monthly_cohorts') {
                              $this->aggregateCustomerOrder($parentsMap[$parentId], $decoded);
-                        } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product'])) {
+                        } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant'])) {
                              // Aggregate Line Items into Order
                              if (isset($decoded['quantity'])) {
                                  if (!isset($parentsMap[$parentId]['lineItems'])) {
@@ -1562,7 +1572,7 @@ class ReportBuilderService
                             foreach ($orphanedChildren[$id] as $child) {
                                 if ($dataset === 'customers' || $dataset === 'customers_by_country' || $dataset === 'monthly_cohorts') {
                                     $this->aggregateCustomerOrder($parentsMap[$id], $child);
-                                } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product'])) {
+                                 } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant'])) {
                                      // Aggregate Line Items into Order
                                      if (isset($child['quantity'])) {
                                          if (!isset($parentsMap[$id]['lineItems'])) {
@@ -1608,6 +1618,8 @@ class ReportBuilderService
             error_log("  Total parent orders stored: " . count($parentsMap));
             error_log("  Total child line items found: $totalChildItems");
             error_log("  Final data rows (after filtering): " . count($data));
+            error_log("  Report Builder parentsMap count: " . count($parentsMap));
+            error_log("  Dataset being processed: $dataset");
             
             // Sample first parent order to see structure
             if (!empty($parentsMap)) {
@@ -1618,7 +1630,7 @@ class ReportBuilderService
         }
         
         // Post-Processing for Summary Datasets (Now using Aggregated Parents)
-        if ($dataset === 'sales_summary' || $dataset === 'monthly_sales' || $dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product') {
+        if ($dataset === 'sales_summary' || $dataset === 'monthly_sales' || $dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping') {
             $groups = [];
             $grandTotals = [
                 'orders' => 0, 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
@@ -1632,19 +1644,29 @@ class ReportBuilderService
             // But we can check if the first row has lineItems and we entered here.
             
             $sourceData = !empty($parentsMap) ? $parentsMap : $data;
+            error_log("processBulkData - Post-processing for summary report. Source count: " . count($sourceData));
+            $passCount = 0;
 
             foreach ($sourceData as $id => $row) {
                 // Strict validation: Only real orders
                 if (!is_string($id) || strpos($id, 'gid://shopify/Order/') === false) continue;
                 
                 if (!$this->matchesFilters($row)) continue;
+                $passCount++;
 
                 $createdAt = $row['createdAt'] ?? '';
                 $monthKey = !empty($createdAt) ? date('Y-m', strtotime($createdAt)) : 'Unknown';
                 $monthLabel = !empty($createdAt) ? date('M Y', strtotime($createdAt)) : 'Unknown';
                 $yearLabel = !empty($createdAt) ? date('Y', strtotime($createdAt)) : '';
 
-                if ($monthLabel === 'Unknown' || $monthKey === 'Unknown') continue;
+                if ($monthLabel === 'Unknown' || $monthKey === 'Unknown') {
+                    static $unknownCount = 0;
+                    if ($unknownCount < 5) {
+                        error_log("processBulkData - Row skipped due to Unknown date: ID=" . $id . " createdAt=" . ($createdAt ?? 'null'));
+                        $unknownCount++;
+                    }
+                    continue;
+                }
 
                 // STRICT FILTER: For POS-specific reports, explicitly skip non-POS orders
                 // We check if the App Name contains "POS" or "Point of Sale"
@@ -1670,6 +1692,18 @@ class ReportBuilderService
                 
                 $channel = ($dataset === 'monthly_sales_channel') ? ($row['app']['name'] ?? 'Other') : '';
 
+                // Shipping country and state for Monthly sales by shipping country, state
+                $shippingCountry = '';
+                $shippingState = '';
+                if ($dataset === 'monthly_sales_shipping') {
+                    $addr = $row['shippingAddress'] ?? [];
+                    $shippingCountry = $addr['country'] ?? 'Unknown';
+                    $shippingState = $addr['province'] ?? '';
+                    if ($shippingState === '') {
+                        $shippingState = $addr['provinceCode'] ?? '';
+                    }
+                }
+
                 // POS User Name Logic - downgraded due to API scope restrictions
                 $posUserName = '';
                 if ($dataset === 'monthly_sales_pos_user') {
@@ -1694,7 +1728,9 @@ class ReportBuilderService
                     $groupKey = $monthKey . '||' . $channel;
                 } elseif ($dataset === 'monthly_sales_pos_user') {
                     $groupKey = $monthKey . '||' . $posUserName;
-                } elseif ($dataset === 'monthly_sales_product') {
+                } elseif ($dataset === 'monthly_sales_shipping') {
+                    $groupKey = $monthKey . '||' . $shippingCountry . '||' . $shippingState;
+                } elseif ($dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant') {
                     // For Product Report, we split the order into multiple groups (one per product).
                     // So we do NOT have a single groupKey for this iteration.
                     // We set it to NULL to skip the default group initialization.
@@ -1710,6 +1746,8 @@ class ReportBuilderService
                         'channel' => $channel,
                         'pos_location_name' => $posLocation,
                         'user_name' => $posUserName,
+                        'order_shipping_country' => $shippingCountry,
+                        'order_shipping_state' => $shippingState,
                         'month_sort' => $monthKey,
                         'total_orders' => 0, 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
                         'net' => 0.0, 'taxes' => 0.0, 'shipping' => 0.0, 'sales' => 0.0,
@@ -1781,7 +1819,9 @@ class ReportBuilderService
                 // BUT: For monthly_sales_product, we are splitting the order.
                 // We must differentiate logic here.
                 
-                $isProductReport = ($dataset === 'monthly_sales_product');
+                $isProductReport = ($dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant');
+                $isProductTypeReport = ($dataset === 'monthly_sales_product_type');
+                $isProductVariantReport = ($dataset === 'monthly_sales_product_variant');
                 if (!$isProductReport && !empty($reportId)) {
                      // Check columns for product_title as fallback
                      // We need to access $config which isn't easily available here without fetching report again?
@@ -1798,7 +1838,7 @@ class ReportBuilderService
                      if (!empty($row['lineItems'])) {
                         foreach ($row['lineItems'] as $index => $li) {
                              // DEBUG: Log the first item of the first order found to see structure
-                             if ($index === 0 && $this->debugCounter < 5) {
+                             if ($index === 0 && ($this->debugCounter ?? 0) < 10) {
                                   error_log("DEBUG monthly_sales_product Item: " . json_encode($li));
                                   $this->debugCounter = ($this->debugCounter ?? 0) + 1;
                              }
@@ -1806,22 +1846,35 @@ class ReportBuilderService
                              $q = (float)($li['quantity'] ?? 0);
                              $p = (float)($li['originalUnitPriceSet']['shopMoney']['amount'] ?? 0);
                              
-                             // If title is missing, try variants, or even look for 'name' property?
+                             // Fallback for price if unit price set is missing
+                             if ($p <= 0 && isset($li['variant']['price'])) {
+                                  $p = (float)$li['variant']['price'];
+                             }
+                             
                              $prodTitle = $li['title'] ?? ($li['variant']['product']['title'] ?? '');
                              if ($prodTitle === '') {
-                                 // Try 'name' field if title is missing (rare but possible in some API versions)
-                                 $prodTitle = $li['name'] ?? 'Unknown Product (Missing Title)';
+                                 $prodTitle = $li['name'] ?? 'Unknown Product';
                              }
                              
                              $gross = $q * $p;
                              $orderGrandGross += $gross;
 
+                             $pType = $li['variant']['product']['productType'] ?? 'Unknown Type';
+                             if (empty($pType)) $pType = 'No Type';
+
                              $cost = (float)($li['variant']['inventoryItem']['unitCost']['amount'] ?? 0);
                              if ($cost <= 0) $cost = $p; // Fallback
                              $totalCost = $cost * $q;
-                             
+
+                             $variantTitle = $li['variant']['title'] ?? '';
+                             if (empty($variantTitle)) {
+                                 $variantTitle = 'Default Title';
+                             }
+
                              $validItems[] = [
                                  'title' => $prodTitle,
+                                 'variant_title' => $variantTitle,
+                                 'product_type' => $pType,
                                  'quantity' => $q,
                                  'gross' => $gross,
                                  'cost' => $totalCost
@@ -1839,6 +1892,8 @@ class ReportBuilderService
                         // If lineItems is empty, it means sync failed to attach them.
                         $validItems[] = [
                             'title' => 'Unknown Product (Sync Error)', // Differentiate from No Data
+                            'variant_title' => '',
+                            'product_type' => 'Unknown Type',
                             'quantity' => 1,
                             'gross' => $orderNetSub + $orderDiscounts, 
                             'cost' => 0
@@ -1858,12 +1913,19 @@ class ReportBuilderService
                     foreach ($validItems as $item) {
                         $ratio = $item['gross'] / $orderGrandGross;
                         
-                        $pKey = $monthKey . '||' . $item['title'];
+                        $itemKey = $item['title'];
+                        if ($isProductTypeReport) $itemKey = $item['product_type'];
+                        if ($isProductVariantReport) $itemKey = $item['title'] . ' || ' . $item['variant_title'];
+
+                        $pKey = $monthKey . '||' . $itemKey;
+
                         if (!isset($groups[$pKey])) {
                             $groups[$pKey] = [
                                 'month_date' => $monthLabel,
                                 'year' => $yearLabel,
                                 'product_title' => $item['title'],
+                                'variant_title' => $item['variant_title'],
+                                'product_type' => $item['product_type'],
                                 'month_sort' => $monthKey,
                                 'total_quantity' => 0, 'total_orders' => 0, // Track unique orders? We'll just increment orders count
                                 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
@@ -1946,18 +2008,55 @@ class ReportBuilderService
                     'total_cost_of_goods_sold' => ['amount' => number_format($grandTotals['cogs'], 2, '.', ''), 'currencyCode' => $currency],
                     'total_gross_margin' => ['amount' => number_format($grandTotals['margin'], 2, '.', ''), 'currencyCode' => $currency],
                 ]];
-            } elseif ($dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user') {
+            } elseif ($dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping') {
                 // Formatter helper
                 $fmt = function($val) use ($currency) {
                     return ['amount' => number_format($val, 2, '.', ''), 'currencyCode' => $currency];
                 };
 
+                // Deduplication logic: Aggressively cleanup duplicates that visual look identical.
+                // User requested to "delete one fake row", so we discard subsequent matches.
+                if ($dataset === 'monthly_sales_shipping') {
+                    $merged = [];
+                    foreach ($groups as $g) {
+                        // Generate key based on normalized display values
+                        $countryRaw = $g['order_shipping_country'] ?? '';
+                        $stateRaw = $g['order_shipping_state'] ?? '';
+                        
+                        $normCountry = strtoupper(trim($countryRaw));
+                        $normState = strtoupper(trim($stateRaw));
+                        
+                        $canon = $g['month_sort'] . '||' . $normCountry . '||' . $normState;
+                        
+                        if (isset($merged[$canon])) {
+                            // Duplicate found. Discard it.
+                            continue;
+                        } else {
+                            $merged[$canon] = $g;
+                        }
+                    }
+                    $groups = $merged;
+                }
                 // Sort groups by Month DESC, then Secondary Key ASC
                 uasort($groups, function($a, $b) use ($dataset) {
                     if ($a['month_sort'] === $b['month_sort']) {
                         if ($dataset === 'monthly_sales_pos_location') return strcmp($a['pos_location_name'], $b['pos_location_name']);
                         if ($dataset === 'monthly_sales_pos_user') return strcmp($a['user_name'], $b['user_name']);
-                        return strcmp($a['channel'], $b['channel']);
+                        if ($dataset === 'monthly_sales_product') return strcmp($a['product_title'], $b['product_title']);
+                        if ($dataset === 'monthly_sales_product_variant') {
+                             if ($a['product_title'] === $b['product_title']) {
+                                  return strcmp($a['variant_title'], $b['variant_title']);
+                             }
+                             return strcmp($a['product_title'], $b['product_title']);
+                        }
+                        if ($dataset === 'monthly_sales_product_type') return strcmp($a['product_type'], $b['product_type']);
+                        if ($dataset === 'monthly_sales_shipping') {
+                             if (($a['order_shipping_country'] ?? '') !== ($b['order_shipping_country'] ?? '')) {
+                                  return strcmp($a['order_shipping_country'] ?? '', $b['order_shipping_country'] ?? '');
+                             }
+                             return strcmp($a['order_shipping_state'] ?? '', $b['order_shipping_state'] ?? '');
+                        }
+                        return strcmp(($a['channel']??''), ($b['channel']??''));
                     }
                     return strcmp($b['month_sort'], $a['month_sort']); // Descending Month
                 });
@@ -1981,6 +2080,10 @@ class ReportBuilderService
                                 'channel' => '',
                                 'pos_location_name' => '',
                                 'user_name' => '',
+                                'product_title' => '',
+                                'variant_title' => '',
+                                'product_type' => '',
+                                'total_quantity' => $mt['quantity'] ?? '',
                                 'total_orders' => $mt['orders'],
                                 'total_gross_sales' => $fmt($mt['gross']),
                                 'total_discounts' => $fmt($mt['discounts']),
@@ -1999,7 +2102,7 @@ class ReportBuilderService
                         $monthTotals[$currentMonth] = [
                             'label' => $g['month_date'],
                             'year' => $g['year'],
-                            'orders' => 0, 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
+                            'orders' => 0, 'quantity' => 0, 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
                             'net' => 0.0, 'taxes' => 0.0, 'shipping' => 0.0, 'sales' => 0.0,
                             'cogs' => 0.0, 'margin' => 0.0
                         ];
@@ -2008,6 +2111,8 @@ class ReportBuilderService
                     // Add row
                     $row = [
                         'month_date' => $g['month_date'],
+                        'date' => $g['month_date'], // Redundant key for safety
+                        'month' => $g['month_date'], // Redundant key for safety
                         'total_orders' => $g['total_orders'],
                         'total_gross_sales' => $fmt($g['gross']),
                         'total_discounts' => $fmt($g['discounts']),
@@ -2025,8 +2130,28 @@ class ReportBuilderService
                         $row['pos_location_name'] = $g['pos_location_name'];
                     } elseif ($dataset === 'monthly_sales_pos_user') {
                         $row['user_name'] = $g['user_name'];
+                    } elseif ($dataset === 'monthly_sales_product') {
+                        $row['product_title'] = $g['product_title'];
+                        $row['total_quantity'] = $g['total_quantity'];
+                    } elseif ($dataset === 'monthly_sales_product_variant') {
+                        $row['product_title'] = $g['product_title'];
+                        $row['variant_title'] = $g['variant_title'];
+                        $row['total_quantity'] = $g['total_quantity'];
+                    } elseif ($dataset === 'monthly_sales_shipping') {
+                        $row['order_shipping_country'] = $g['order_shipping_country'] ?? '';
+                        $row['order_shipping_state'] = $g['order_shipping_state'] ?? '';
+                    } elseif ($dataset === 'monthly_sales_product_type') {
+                        $row['product_type'] = $g['product_type'];
+                        $row['Product type'] = $g['product_type']; // Case variation for safety
+                        $row['total_quantity'] = $g['total_quantity'];
                     } else {
                         $row['channel'] = $g['channel'];
+                    }
+                    
+                    $row['is_summary'] = false;
+                    
+                    if ($dataset === 'monthly_sales_product_type') {
+                         error_log("DEBUG monthly_sales_product_type - Row being added: " . json_encode($row));
                     }
                     
                     $rows[] = $row;
@@ -2035,6 +2160,7 @@ class ReportBuilderService
                     // Accumulate Month Total
                     $mt = &$monthTotals[$currentMonth];
                     $mt['orders'] += $g['total_orders'];
+                    $mt['quantity'] += ($g['total_quantity'] ?? 0);
                     $mt['gross'] += $g['gross'];
                     $mt['discounts'] += $g['discounts'];
                     $mt['refunds'] += $g['refunds'];
@@ -2075,6 +2201,10 @@ class ReportBuilderService
                         'channel' => '',
                         'pos_location_name' => '',
                         'user_name' => '',
+                        'product_title' => '',
+                        'variant_title' => '',
+                        'product_type' => '',
+                        'total_quantity' => $mt['quantity'],
                         'total_orders' => $mt['orders'],
                         'total_gross_sales' => $fmt($mt['gross']),
                         'total_discounts' => $fmt($mt['discounts']),
@@ -2098,6 +2228,8 @@ class ReportBuilderService
                         'channel' => '',
                         'pos_location_name' => '',
                         'user_name' => '',
+                        'product_title' => '',
+                        'variant_title' => '',
                         'total_orders' => $yt['orders'],
                         'total_gross_sales' => $fmt($yt['gross']),
                         'total_discounts' => $fmt($yt['discounts']),
@@ -2115,153 +2247,7 @@ class ReportBuilderService
                 
                 $data = $rows;
                 
-            } elseif ($dataset === 'monthly_sales_product') {
-                // Monthly Sales by Product - Prorated Aggregation Output Logic
-                // Sort by Month DESC, then Product Title ASC
-                uasort($groups, function($a, $b) {
-                   if ($a['month_sort'] === $b['month_sort']) {
-                       return strcmp($a['product_title'], $b['product_title']);
-                   }
-                   return strcmp($b['month_sort'], $a['month_sort']); // Descending Month
-               });
-
-               $rows = [];
-               $monthTotals = [];
-               $yearTotals = [];
-               $currentMonth = null;
-               $fmt = function($val) use ($currency) {
-                    return ['amount' => number_format($val, 2, '.', ''), 'currencyCode' => $currency];
-               };
-
-               foreach ($groups as $pKey => $g) {
-                   if ($currentMonth !== $g['month_sort']) {
-                        // Cleanup previous month totals
-                        if ($currentMonth !== null && isset($monthTotals[$currentMonth])) {
-                            $mt = $monthTotals[$currentMonth];
-                            $rows[] = [
-                                'month_date' => 'TOTAL ' . $mt['label'],
-                                'product_title' => '',
-                                'total_quantity' => $mt['quantity'],
-                                'total_orders' => $mt['orders'],
-                                'total_gross_sales' => $fmt($mt['gross']),
-                                'total_discounts' => $fmt($mt['discounts']),
-                                'total_refunds' => $fmt($mt['refunds']),
-                                'total_net_sales' => $fmt($mt['net']),
-                                'total_taxes' => $fmt($mt['taxes']),
-                                'total_sales' => $fmt($mt['sales']),
-                                'total_cost_of_goods_sold' => $fmt($mt['cogs']),
-                                'total_gross_margin' => $fmt($mt['margin']),
-                                'is_summary' => true,
-                                'is_month_total' => true
-                            ];
-                        }
-                        $currentMonth = $g['month_sort'];
-                        $monthTotals[$currentMonth] = [
-                            'label' => $g['month_date'],
-                            'year' => $g['year'],
-                            'quantity' => 0, 'orders' => 0, 
-                            'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
-                            'net' => 0.0, 'taxes' => 0.0, 'sales' => 0.0,
-                            'cogs' => 0.0, 'margin' => 0.0
-                        ];
-                   }
-                   
-                   // Add Product Row
-                   $rows[] = [
-                       'month_date' => $g['month_date'],
-                       'product_title' => $g['product_title'],
-                       'total_quantity' => $g['total_quantity'],
-                       'total_orders' => $g['total_orders'],
-                       'total_gross_sales' => $fmt($g['gross']),
-                       'total_discounts' => $fmt($g['discounts']),
-                       'total_refunds' => $fmt($g['refunds']),
-                       'total_net_sales' => $fmt($g['net']),
-                       'total_taxes' => $fmt($g['taxes']),
-                       'total_sales' => $fmt($g['sales']),
-                       'total_cost_of_goods_sold' => $fmt($g['cogs']),
-                       'total_gross_margin' => $fmt($g['margin']),
-                       'is_summary' => false
-                   ];
-                   
-                   // Accumulate Month Total
-                   $mt = &$monthTotals[$currentMonth];
-                   $mt['quantity'] += $g['total_quantity'];
-                   $mt['orders'] += $g['total_orders'];
-                   $mt['gross'] += $g['gross'];
-                   $mt['discounts'] += $g['discounts'];
-                   $mt['refunds'] += $g['refunds'];
-                   $mt['net'] += $g['net'];
-                   $mt['taxes'] += $g['taxes'];
-                   $mt['sales'] += $g['sales'];
-                   $mt['cogs'] += $g['cogs'];
-                   $mt['margin'] += $g['margin'];
-                   
-                   // Accumulate Year Total
-                   $year = $g['year'];
-                   if (!isset($yearTotals[$year])) {
-                        $yearTotals[$year] = [
-                           'quantity' => 0, 'orders' => 0, 
-                           'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
-                           'net' => 0.0, 'taxes' => 0.0, 'sales' => 0.0,
-                           'cogs' => 0.0, 'margin' => 0.0
-                       ];
-                   }
-                   $yt = &$yearTotals[$year];
-                   $yt['quantity'] += $g['total_quantity'];
-                   $yt['orders'] += $g['total_orders'];
-                   $yt['gross'] += $g['gross'];
-                   $yt['discounts'] += $g['discounts'];
-                   $yt['refunds'] += $g['refunds'];
-                   $yt['net'] += $g['net'];
-                   $yt['taxes'] += $g['taxes'];
-                   $yt['sales'] += $g['sales'];
-                   $yt['cogs'] += $g['cogs'];
-                   $yt['margin'] += $g['margin'];
-               }
-               
-               // Final Cleanup for Last Month
-                if ($currentMonth !== null && isset($monthTotals[$currentMonth])) {
-                    $mt = $monthTotals[$currentMonth];
-                    $rows[] = [
-                        'month_date' => 'TOTAL ' . $mt['label'],
-                        'product_title' => '',
-                        'total_quantity' => $mt['quantity'],
-                        'total_orders' => $mt['orders'],
-                        'total_gross_sales' => $fmt($mt['gross']),
-                        'total_discounts' => $fmt($mt['discounts']),
-                        'total_refunds' => $fmt($mt['refunds']),
-                        'total_net_sales' => $fmt($mt['net']),
-                        'total_taxes' => $fmt($mt['taxes']),
-                        'total_sales' => $fmt($mt['sales']),
-                        'total_cost_of_goods_sold' => $fmt($mt['cogs']),
-                        'total_gross_margin' => $fmt($mt['margin']),
-                        'is_summary' => true,
-                        'is_month_total' => true
-                    ];
-                }
-
-                // Append Year Totals
-                krsort($yearTotals);
-                foreach ($yearTotals as $year => $yt) {
-                     $rows[] = [
-                        'month_date' => 'TOTAL ' . $year,
-                        'product_title' => '',
-                        'total_quantity' => $yt['quantity'],
-                        'total_orders' => $yt['orders'],
-                        'total_gross_sales' => $fmt($yt['gross']),
-                        'total_discounts' => $fmt($yt['discounts']),
-                        'total_refunds' => $fmt($yt['refunds']),
-                        'total_net_sales' => $fmt($yt['net']),
-                        'total_taxes' => $fmt($yt['taxes']),
-                        'total_sales' => $fmt($yt['sales']),
-                        'total_cost_of_goods_sold' => $fmt($yt['cogs']),
-                        'total_gross_margin' => $fmt($yt['margin']),
-                        'is_summary' => true,
-                        'is_year_total' => true
-                    ];
-                }
-                
-                $data = $rows;
+            } elseif ($dataset === 'monthly_sales' || $dataset === 'monthly_sales_summary') {
                 // Monthly Sales formatting
                 krsort($groups);
                 $rows = [];
@@ -3048,7 +3034,7 @@ class ReportBuilderService
         }
 
         // For Standard Reports, add the Aggregated Parents to Data
-        if (!$isChildRowReport && !in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_cohorts', 'aov_time', 'customers_by_country', 'products_by_type', 'products_vendor', 'inventory_by_product', 'inventory_by_vendor'])) {
+        if (!$isChildRowReport && !in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_cohorts', 'aov_time', 'customers_by_country', 'products_by_type', 'products_vendor', 'inventory_by_product', 'inventory_by_vendor'])) {
             error_log("ReportBuilderService::processBulkData - Merging " . count($parentsMap) . " parents into final data");
             foreach ($parentsMap as $p) {
                 // Apply Filters to Parents (e.g. Order Date)
@@ -3195,13 +3181,13 @@ class ReportBuilderService
             } elseif ($field === 'updated_at') {
                 $nodeValue = $node['updatedAt'] ?? null;
             } elseif ($field === 'financial_status') {
-                $nodeValue = $node['financialStatus'] ?? null;
+                $nodeValue = $node['displayFinancialStatus'] ?? ($node['financialStatus'] ?? null);
             } elseif ($field === 'fulfillment_status') {
-                $nodeValue = $node['fulfillmentStatus'] ?? null;
+                $nodeValue = $node['displayFulfillmentStatus'] ?? ($node['fulfillmentStatus'] ?? null);
             } elseif ($field === 'product_type') {
                  // Deep Check: Scan Line Items
                  // If any line item matches, the Order matches.
-                 $items = $node['line_items'] ?? [];
+                 $items = $node['line_items'] ?? ($node['lineItems'] ?? []);
                  $matchFound = false;
                  foreach($items as $item) {
                      $pType = $item['variant']['product']['productType'] ?? '';
@@ -3313,21 +3299,41 @@ class ReportBuilderService
         // NOTE: Without read_all_orders or read_locations, specific POS location names cannot be retrieved. 
         // We rely on app { name } to identify POS orders generally.
         // ADDED: lineItems title and variant { product { title } } for Product Reporting
-        return "query { orders(first: 250) { edges { node { id name createdAt app { name } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title originalUnitPriceSet { shopMoney { amount } } variant { title product { title } inventoryItem { unitCost { amount } } } } } } } } } }";
+
+         // Build search query from filters (re-enabling date filters with buffer)
+         $searchQuery = $this->buildSearchQuery($filters, ['created_at', 'updated_at', 'status', 'tag']);
+         
+         // Ensure status:any is always present if not explicit
+         if (empty($searchQuery)) {
+             $searchQuery = "status:any";
+         } else {
+             if (strpos($searchQuery, 'status:') === false) {
+                 $searchQuery .= " AND status:any";
+             }
+         }
+
+        // REMOVED 'first: 250' to ensure ALL matching orders (e.g. including Jan 2026) are fetched by Bulk Operation.
+        return "{ orders(sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } shippingAddress { country province } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType } inventoryItem { unitCost { amount } } } } } } } } } }";
     }
 
     private function buildAovTimeQuery($filters, $columns, $groupBy, $aggregations)
     {
-        return "query { orders(query: \"status:any\") { edges { node { id createdAt totalPriceSet { shopMoney { amount } } lineItems { edges { node { title variant { product { productType } } } } } } } } }";
+        return "{ orders(first: 250, query: \"status:any\") { edges { node { id createdAt totalPriceSet { shopMoney { amount } } lineItems(first: 250) { edges { node { title variant { product { productType } } } } } } } } }";
     }
 
     private function buildBrowserShareQuery($filters, $columns, $groupBy, $aggregations)
     {
-        return "query { orders(first: 250) { edges { node { id customerJourneySummary { lastVisit { source browser } } } } } }";
+        return "{ orders(first: 250, query: \"status:any\") { edges { node { id customerJourneySummary { lastVisit { source browser } } } } } }";
     }
-    private function buildSearchQuery($filters, $allowedFields)
+    private function buildSearchQuery($filters, $allowedFields = [])
     {
         $parts = [];
+        
+        // If no allowedFields provided, allow all common ones
+        if (empty($allowedFields)) {
+            $allowedFields = ['created_at', 'updated_at', 'status', 'tag', 'financial_status', 'fulfillment_status', 'email', 'customer_id'];
+        }
+        
         foreach ($filters as $filter) {
             // Basic validation
             if (empty($filter['field']) || empty($filter['value'])) continue;
@@ -3341,7 +3347,32 @@ class ReportBuilderService
             // We rely on PHP-side filtering (matchesFilters) which is now robust.
             // Since we fetch 250 items (small store), fetching all recent items and filtering in PHP is safer.
             // CRITICAL FIX: Exclude date filters from Shopify Search Query.
-            if ($field === 'created_at' || $field === 'updated_at') continue;
+            if ($field === 'created_at' || $field === 'updated_at') {
+                 // RE-ENABLE DATE FILTERS with BUFFER
+                 // We MUST filter by date in API query to ensure the "250 items" fetched are relevant to the requested period.
+                 // To avoid timezone edge cases, we will expand the window by 2 days.
+                 
+                 $val = $filter['value'];
+                 $op = $filter['operator'] ?? '=';
+                 
+                 try {
+                     $dt = new \DateTime($val);
+                     if ($op === '>=' || $op === '>') {
+                         // Start date: subtract 2 days
+                         $dt->modify('-2 days');
+                         $val = $dt->format('Y-m-d');
+                     } elseif ($op === '<=' || $op === '<') {
+                         // End date: add 2 days
+                         $dt->modify('+2 days');
+                         $val = $dt->format('Y-m-d');
+                     }
+                     // Updates filter value locally for the query string construction below
+                     $filter['value'] = $val;
+                 } catch (\Exception $e) {
+                     // Invalid date format, skip adding to API query to be safe
+                     continue;
+                 }
+            }
             
             // CRITICAL FIX: Exclude Status filters from Shopify Search Query (API Error Prevention)
             // Shopify API rejects 'financialStatus' (camelCase) in search query.
@@ -3419,11 +3450,31 @@ class ReportBuilderService
     {
          error_log("buildProductReportQuery - Building specialized query for Product Report");
          
+         // Build search query from filters (re-enabling date filters with buffer)
+         $searchQuery = $this->buildSearchQuery($filters, ['created_at', 'updated_at', 'status', 'tag']);
+         
+         // Ensure status:any is always present if not explicit
+         if (empty($searchQuery)) {
+             $searchQuery = "status:any";
+         } else {
+             // Append status:any if not present? Actually buildSearchQuery might output valid query.
+             // But we want ALL statuses by default if not filtered.
+             // If user filtered by status, it's in $searchQuery.
+             // If $searchQuery only has date, we should add status:any?
+             // Actually, Shopify defaults to "open" if status not specified? 
+             // Best to append " AND status:any" if "status" keyword isn't in query.
+             if (strpos($searchQuery, 'status:') === false) {
+                 $searchQuery .= " AND status:any";
+             }
+         }
+         
+         error_log("buildProductReportQuery - Final Query: $searchQuery");
+
          // Bulk API Safe Query: No connections inside lists.
          // We fetch Order Totals (for proration) and Line Items (for details).
          
-         $query = "query { orders(first: 250) { edges { node { ";
-         $query .= "id name createdAt email ";
+         $query = "{ orders(first: 250, sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { ";
+         $query .= "id name createdAt email displayFinancialStatus displayFulfillmentStatus ";
          $query .= "subtotalPriceSet { shopMoney { amount } } ";
          $query .= "totalDiscountsSet { shopMoney { amount } } ";
          $query .= "totalRefundedSet { shopMoney { amount } } ";

@@ -504,6 +504,8 @@ class ReportController extends Controller
         }
 
         // AUTO-PATCH: Ensure customers dataset has updated_at column
+        error_log("ReportController::run - Processing report: {$report['name']} (ID: {$id}), Category: {$report['category']}");
+        
         $config = json_decode($report['query_config'], true) ?: [];
         if (isset($config['dataset']) && $config['dataset'] === 'customers') {
             $columns = $config['columns'] ?? [];
@@ -622,6 +624,29 @@ class ReportController extends Controller
              $report = $reportModel->find($id);
         }
 
+        // AUTO-PATCH: Fix Monthly sales by shipping country, state report
+        if (($report['category'] === 'sales_shipping' || $report['name'] === 'Monthly sales by shipping country, state') && ($config['dataset'] !== 'monthly_sales_shipping')) {
+             error_log("ReportController::run - Auto-patching Monthly sales by shipping country, state report {$id}");
+             $config['dataset'] = 'monthly_sales_shipping';
+             $config['columns'] = [
+                 'month_date',
+                 'order_shipping_country',
+                 'order_shipping_state',
+                 'total_orders',
+                 'total_gross_sales',
+                 'total_discounts',
+                 'total_refunds',
+                 'total_net_sales',
+                 'total_taxes',
+                 'total_shipping',
+                 'total_sales',
+                 'total_cost_of_goods_sold',
+                 'total_gross_margin'
+             ];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
         // AUTO-PATCH: Fix Monthly Sales by POS location
         if (($report['category'] === 'monthly_sales_pos_location' || $report['name'] === 'Monthly sales by POS location') && ($config['dataset'] !== 'monthly_sales_pos_location')) {
              error_log("ReportController::run - Auto-patching Monthly sales by POS location report {$id}");
@@ -663,12 +688,64 @@ class ReportController extends Controller
         // AUTO-PATCH: Fix Monthly Sales by Product report
         $isProductReport = ($report['category'] === 'monthly_sales_product' || stripos($report['name'], 'Monthly sales by product') !== false);
         
+        // Exclude "Product type" and "Product variant" reports from this check to let their specific patches handle them
+        if (stripos($report['name'], 'by product type') !== false || stripos($report['name'], 'by product variant') !== false) {
+             $isProductReport = false;
+        }
+        
         if ($isProductReport && ($config['dataset'] !== 'monthly_sales_product')) {
              error_log("ReportController::run - Auto-patching Monthly sales by product report {$id} - UPDATING DB");
              $config['dataset'] = 'monthly_sales_product';
              $config['columns'] = [
                  'month_date', 
                  'product_title',
+                 'total_quantity',
+                 'total_orders', 
+                 'total_gross_sales', 
+                 'total_discounts', 
+                 'total_refunds', 
+                 'total_net_sales', 
+                 'total_taxes', 
+                 'total_sales', 
+                 'total_cost_of_goods_sold', 
+                 'total_gross_margin'
+             ];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+        // AUTO-PATCH: Fix Monthly Sales by Product TYPE report
+        $isProductTypeReport = ($report['category'] === 'monthly_sales_product_type' || stripos($report['name'], 'Monthly sales by product type') !== false);
+        
+        if ($isProductTypeReport && ($config['dataset'] !== 'monthly_sales_product_type')) {
+             error_log("ReportController::run - Auto-patching Monthly sales by product TYPE report {$id} - UPDATING DB");
+             $config['dataset'] = 'monthly_sales_product_type';
+             $config['columns'] = [
+                 'month_date', 
+                 'product_type',
+                 'total_gross_sales', 
+                 'total_discounts', 
+                 'total_refunds', 
+                 'total_net_sales', 
+                 'total_taxes', 
+                 'total_sales', 
+                 'total_cost_of_goods_sold', 
+                 'total_gross_margin'
+             ];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
+        // AUTO-PATCH: Fix Monthly sales by product variant report
+        $isProductVariantReport = ($report['category'] === 'monthly_sales_product_variant' || $report['category'] === 'is_variant_report' || stripos($report['name'], 'Monthly sales by product variant') !== false);
+        
+        if ($isProductVariantReport && ($config['dataset'] !== 'monthly_sales_product_variant')) {
+             error_log("ReportController::run - Auto-patching Monthly sales by product variant report {$id} - UPDATING DB");
+             $config['dataset'] = 'monthly_sales_product_variant';
+             $config['columns'] = [
+                 'month_date', 
+                 'product_title',
+                 'variant_title',
                  'total_quantity',
                  'total_orders', 
                  'total_gross_sales', 
@@ -774,13 +851,11 @@ class ReportController extends Controller
             $isPendingFulfillmentReport = ($dataset === 'pending_fulfillment_by_variant') && 
                                            ($report['category'] === 'pending_fulfillment' || $report['name'] === 'Items pending fulfillment');
             
-            if (isset($_GET['start_date']) && isset($_GET['end_date']) && !$isPendingFulfillmentReport) {
-                $startDate = $_GET['start_date'];
-                $endDate = $_GET['end_date'];
-                
+            // Accept date range from GET or POST so filters work when Run report is used with a date range
+            $startDate = $_GET['start_date'] ?? $input['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? $input['end_date'] ?? null;
+            if ($startDate !== null && $endDate !== null && !$isPendingFulfillmentReport && empty($runtimeConfig['filters'])) {
                 error_log("ReportController::run - Converting date params: start={$startDate}, end={$endDate}");
-                
-                // Create filters array for date range
                 $runtimeConfig['filters'] = [
                     [
                         'field' => 'created_at',
@@ -797,9 +872,8 @@ class ReportController extends Controller
                 error_log("ReportController::run - Skipping date filters for pending fulfillment report");
             }
             
-            if (isset($_GET['filters'])) {
-                 // Fallback for GET (less likely for complex filters but possible)
-                 $runtimeConfig['filters'] = $_GET['filters']; 
+            if (isset($_GET['filters']) && is_array($_GET['filters']) && empty($runtimeConfig['filters'])) {
+                 $runtimeConfig['filters'] = $_GET['filters'];
             }
 
             error_log("ReportController::run - Runtime Config: " . json_encode($runtimeConfig));
@@ -1045,6 +1119,30 @@ class ReportController extends Controller
                     'total_shipping', 
                     'total_sales', 
                     'total_cost_of_goods_sold', 
+                    'total_gross_margin'
+                ]
+            ]
+        ];
+
+        // Monthly sales by shipping country, state report
+        $reports['sales_shipping'] = [
+            'name' => 'Monthly sales by shipping country, state',
+            'description' => 'Monthly sales breakdown by order shipping country and state',
+            'config' => [
+                'dataset' => 'monthly_sales_shipping',
+                'columns' => [
+                    'month_date',
+                    'order_shipping_country',
+                    'order_shipping_state',
+                    'total_orders',
+                    'total_gross_sales',
+                    'total_discounts',
+                    'total_refunds',
+                    'total_net_sales',
+                    'total_taxes',
+                    'total_shipping',
+                    'total_sales',
+                    'total_cost_of_goods_sold',
                     'total_gross_margin'
                 ]
             ]

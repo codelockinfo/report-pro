@@ -2457,6 +2457,10 @@ $baseUrl = rtrim($appUrl, '/');
                     'variant_name': { label: 'Variant name' },
                     'month_date': { label: 'MONTH Date' },
 
+                    // Monthly sales by shipping country, state
+                    'order_shipping_country': { label: 'Order Shipping Country' },
+                    'order_shipping_state': { label: 'Order Shipping State' },
+
                     // Monthly Cohorts specific
                     'month_first_order_date': { label: 'MONTH Order Customer first order date', formatter: val => val || 'Unknown' },
                     'total_customers': { label: 'Total customers', formatter: val => val || 0 },
