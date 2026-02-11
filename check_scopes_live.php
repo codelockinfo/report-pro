@@ -2,8 +2,10 @@
 // Check Scopes Live Script
 // This script verifies the actual Shopify API Scopes granted to the app.
 
-// Disable Framework Loading to prevent conflicts/missing classes
+// Disable Framework Loading
 // require_once 'app/Core/Database.php'; 
+
+define('ROOT_PATH', __DIR__);
 
 // Load Config
 $config = require 'config/config.php';
