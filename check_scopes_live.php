@@ -53,7 +53,8 @@ try {
     echo "<h1>Checking Scopes for: $domain</h1>";
     
     // Call Shopify REST API to get access scopes
-    $url = "https://$domain/admin/api/2024-01/access_scopes.json";
+    // Note: access_scopes is an oauth endpoint, not versioned api
+    $url = "https://$domain/admin/oauth/access_scopes.json";
     $curl = curl_init();
     curl_setopt_array($curl, [
         CURLOPT_URL => $url,
