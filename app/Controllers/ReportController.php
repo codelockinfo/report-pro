@@ -836,7 +836,11 @@ class ReportController extends Controller
             }
             
             // Read runtime config from request body
-            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $rawInput = file_get_contents('php://input');
+            error_log("ReportController::run - RAW INPUT: " . substr($rawInput, 0, 1000));
+            error_log("ReportController::run - GET PARAMS: " . json_encode($_GET));
+            
+            $input = json_decode($rawInput, true) ?? [];
             $runtimeConfig = [];
             
             // Check for filters in request body
@@ -987,6 +991,10 @@ class ReportController extends Controller
             }));
         }
 
+        error_log("ReportController::getData - Report ID: $id");
+        error_log("ReportController::columns: " . json_encode($columns));
+        error_log("ReportController::data count: " . count($data));
+        
         $this->json([
             'data' => $data,
             'total' => count($data),

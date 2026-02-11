@@ -65,6 +65,7 @@ class ReportBuilderService
                 return $this->buildLineItemsQuery($filters, $columns, $groupBy, $aggregations);
             case 'sales_summary':
             case 'monthly_sales':
+            case 'sales_by_channel':
             case 'monthly_sales_channel':
             case 'monthly_sales_pos_location':
             case 'monthly_sales_pos_user':
@@ -72,7 +73,10 @@ class ReportBuilderService
             case 'monthly_sales_product_type':
             case 'monthly_sales_product_variant':
             case 'monthly_sales_shipping':
+            case 'sales_summary':
                 return $this->buildSalesSummaryQuery($filters, $columns, $groupBy, $aggregations);
+            case 'refunds_detailed':
+                return $this->buildRefundsDetailedQuery($filters, $columns);
             case 'aov_time':
                 return $this->buildAovTimeQuery($filters, $columns, $groupBy, $aggregations);
             case 'browser_share':
@@ -1076,7 +1080,7 @@ class ReportBuilderService
         $pendingRefunds = []; // lineItemId => amount (buffer for refunds arriving before line items)
         
         // Datasets that return Child Rows (flattened) instead of Aggregated Parents
-        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku', 'pending_fulfillment_by_variant', 'payouts', 'monthly_disputes', 'pending_disputes', 'markets']);  
+        $isChildRowReport = in_array($dataset, ['line_items', 'transactions', 'products_variant', 'sales_by_variant', 'inventory_by_sku', 'pending_fulfillment_by_variant', 'payouts', 'monthly_disputes', 'pending_disputes', 'markets', 'refunds_detailed']);  
 
         $totalLinesProcessed = 0;
         $totalChildItems = 0;
@@ -1095,6 +1099,11 @@ class ReportBuilderService
             }
             
             if (!$decoded) continue;
+            
+            // Debug Log for first few lines
+            if ($totalLinesProcessed < 5) {
+                file_put_contents('debug_sales.log', "Line $totalLinesProcessed: " . (isset($decoded['__parentId']) ? "Has ParentID" : "No ParentID") . " Dataset: $dataset\n", FILE_APPEND);
+            }
 
             $totalLinesProcessed++;
             
@@ -1102,6 +1111,17 @@ class ReportBuilderService
             if (isset($decoded['__parentId'])) {
                 $totalChildItems++;
                 $parentId = $decoded['__parentId'];
+                
+                // FIX: Aggregate Line Items for sales_by_channel
+                if ($dataset === 'sales_by_channel') {
+                     if (isset($parentsMap[$parentId])) {
+                         if (!isset($parentsMap[$parentId]['lineItems'])) $parentsMap[$parentId]['lineItems'] = [];
+                         $parentsMap[$parentId]['lineItems'][] = $decoded;
+                     } else {
+                         $orphanedChildren[$parentId][] = $decoded;
+                     }
+                     continue;
+                }
                 
                 if ($isChildRowReport) {
                     // FLATTENING STRATEGY:
@@ -1469,7 +1489,7 @@ class ReportBuilderService
                     if (isset($parentsMap[$parentId])) {
                         if ($dataset === 'customers' || $dataset === 'customers_by_country' || $dataset === 'monthly_cohorts') {
                              $this->aggregateCustomerOrder($parentsMap[$parentId], $decoded);
-                        } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant'])) {
+                        } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping'])) {
                              // Aggregate Line Items into Order
                              if (isset($decoded['quantity'])) {
                                  if (!isset($parentsMap[$parentId]['lineItems'])) {
@@ -1520,6 +1540,7 @@ class ReportBuilderService
                     }
                 } else {
                     // Standard Report (Parent is the row)
+
                     // Flatten Country
                     if (isset($decoded['defaultAddress']['country'])) {
                         $decoded['country'] = $decoded['defaultAddress']['country'];
@@ -1572,7 +1593,7 @@ class ReportBuilderService
                             foreach ($orphanedChildren[$id] as $child) {
                                 if ($dataset === 'customers' || $dataset === 'customers_by_country' || $dataset === 'monthly_cohorts') {
                                     $this->aggregateCustomerOrder($parentsMap[$id], $child);
-                                 } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant'])) {
+                                 } elseif (in_array($dataset, ['sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping'])) {
                                      // Aggregate Line Items into Order
                                      if (isset($child['quantity'])) {
                                          if (!isset($parentsMap[$id]['lineItems'])) {
@@ -1630,6 +1651,230 @@ class ReportBuilderService
         }
         
         // Post-Processing for Summary Datasets (Now using Aggregated Parents)
+        error_log("Pre-chain check. Dataset: " . $dataset);
+        if ($dataset === 'refunds_detailed') {
+            error_log("Refunds logic executed. ParentsMap Size: " . count($parentsMap));
+            $rows = [];
+            $ordersWithRefunds = 0;
+            $ordersWithoutRefunds = 0;
+            
+            foreach ($parentsMap as $id => $order) {
+                // Filter: Must have refunds > 0
+                $totalRefunded = (float)($order['totalRefundedSet']['shopMoney']['amount'] ?? 0);
+                
+                if ($totalRefunded <= 0) {
+                    $ordersWithoutRefunds++;
+                    continue;
+                }
+                
+                $ordersWithRefunds++;
+                error_log("Processing Order ID: $id, Name: {$order['name']}, Refunded: $totalRefunded");
+
+                $currency = $order['totalRefundedSet']['shopMoney']['currencyCode'] ?? 'INR';
+                $dayName = date('l', strtotime($order['createdAt']));
+                $orderDate = date('Y-m-d', strtotime($order['createdAt']));
+                $orderName = $order['name'];
+                $customerName = isset($order['customer']) ? trim(($order['customer']['firstName'] ?? '') . ' ' . ($order['customer']['lastName'] ?? '')) : '';
+                
+                // Extract refund notes
+                $refunds = $order['refunds'] ?? [];
+                $combinedNotes = [];
+                if (is_array($refunds)) {
+                    foreach ($refunds as $r) {
+                        if (!empty($r['note'])) $combinedNotes[] = $r['note'];
+                    }
+                }
+                $refundNote = implode('; ', array_unique($combinedNotes));
+                
+                // Since Bulk API doesn't support refundLineItems within refunds list,
+                // we show the order's line items as context for what was potentially refunded
+                $lineItems = $order['lineItems'] ?? [];
+                $hasLineItems = false;
+                
+                error_log("Order {$orderName} lineItems structure: " . json_encode(array_keys($lineItems)));
+                
+                // Handle both connection format (edges/node) and aggregated array format
+                $lineItemsArray = [];
+                if (isset($lineItems['edges']) && is_array($lineItems['edges'])) {
+                    // GraphQL connection format
+                    foreach ($lineItems['edges'] as $edge) {
+                        if (isset($edge['node'])) {
+                            $lineItemsArray[] = $edge['node'];
+                        }
+                    }
+                } elseif (is_array($lineItems) && !isset($lineItems['edges'])) {
+                    // Already a flat array (from aggregation)
+                    $lineItemsArray = $lineItems;
+                }
+                
+                error_log("Order {$orderName} has " . count($lineItemsArray) . " line items to process");
+                
+                if (count($lineItemsArray) > 0) {
+                    foreach ($lineItemsArray as $lineItem) {
+                        if (empty($lineItem)) continue;
+                        
+                        $hasLineItems = true;
+                        $productTitle = $lineItem['title'] ?? '';
+                        $variantTitle = $lineItem['variant']['title'] ?? '';
+                        $quantity = (int)($lineItem['quantity'] ?? 0);
+                        
+                        error_log("  Line Item: Product='{$productTitle}', Variant='{$variantTitle}', Qty={$quantity}");
+                        
+                        // Calculate proportional refund amount per line item
+                        $lineTotal = (float)($lineItem['discountedUnitPriceSet']['shopMoney']['amount'] ?? 0) * $quantity;
+                        $orderTotal = (float)($order['totalPriceSet']['shopMoney']['amount'] ?? 1);
+                        $lineRefundAmount = $orderTotal > 0 ? ($lineTotal / $orderTotal) * $totalRefunded : 0;
+                        
+                        $rows[] = [
+                             'day_name' => $dayName,
+                             'order_date' => $orderDate,
+                             'order_name' => $orderName,
+                             'customer_name' => $customerName,
+                             'refund_note' => $refundNote,
+                             'product_title' => $productTitle,
+                             'variant_title' => $variantTitle,
+                             'total_quantity' => -1 * $quantity, // Negative to indicate refund
+                             'total_refunds' => ['amount' => number_format($lineRefundAmount, 2, '.', ''), 'currencyCode' => $currency],
+                             'total_taxes' => ['amount' => '0.00', 'currencyCode' => $currency],
+                             'total_shipping' => ['amount' => '0.00', 'currencyCode' => $currency],
+                             'total_sales' => ['amount' => number_format(-1 * $lineRefundAmount, 2, '.', ''), 'currencyCode' => $currency]
+                        ];
+                    }
+                }
+                
+                // If no line items, show order-level summary
+                if (!$hasLineItems) {
+                    $rows[] = [
+                         'day_name' => $dayName,
+                         'order_date' => $orderDate,
+                         'order_name' => $orderName,
+                         'customer_name' => $customerName,
+                         'refund_note' => $refundNote,
+                         'product_title' => '(Order-level refund)',
+                         'variant_title' => '',
+                         'total_quantity' => 0,
+                         'total_refunds' => ['amount' => number_format($totalRefunded, 2, '.', ''), 'currencyCode' => $currency],
+                         'total_taxes' => ['amount' => number_format((float)($order['totalTaxSet']['shopMoney']['amount'] ?? 0), 2, '.', ''), 'currencyCode' => $currency],
+                         'total_shipping' => ['amount' => number_format((float)($order['totalShippingPriceSet']['shopMoney']['amount'] ?? 0), 2, '.', ''), 'currencyCode' => $currency],
+                         'total_sales' => ['amount' => number_format(-1 * $totalRefunded, 2, '.', ''), 'currencyCode' => $currency]
+                    ];
+                }
+            }
+            error_log("Refunds Summary: Orders with refunds: $ordersWithRefunds, Orders without refunds: $ordersWithoutRefunds");
+            error_log("Refunds: Before filter - Total rows: " . count($rows));
+            // Strict Filter: Ensure no zero-refund rows slip through
+            $data = array_values(array_filter($rows, function($r) {
+                $amount = (float)$r['total_refunds']['amount'];
+                if ($amount <= 0) {
+                    error_log("Filtering out row with amount: " . $amount . ", Order: " . ($r['order_name'] ?? 'unknown'));
+                }
+                return $amount > 0;
+            }));
+            error_log("Refunds: After filter - Total rows: " . count($data));
+        }
+
+        // Sales by Channel (aggregated by channel only, no month grouping)
+        if ($dataset === 'sales_by_channel') {
+            $channelGroups = [];
+            $currency = '';
+            
+            $sourceData = !empty($parentsMap) ? $parentsMap : $data;
+            // error_log("processBulkData - Processing sales_by_channel. Source count: " . count($sourceData));
+            
+            foreach ($sourceData as $id => $row) {
+                // Strict validation: Only real orders
+                if (!is_string($id) || strpos($id, 'gid://shopify/Order/') === false) continue;
+                if (!$this->matchesFilters($row)) continue;
+                
+                // Get channel
+                $channel = $row['app']['name'] ?? 'Unknown';
+                
+                // Debug Log
+                $liCount = isset($row['lineItems']) ? count($row['lineItems']) : 0;
+                if (!$this->matchesFilters($row)) continue;
+                
+                // Initialize channel group if not exists
+                if (!isset($channelGroups[$channel])) {
+                    $channelGroups[$channel] = [
+                        'channel' => $channel,
+                        'image' => $this->getChannelImage($channel),
+                        'total_orders' => 0,
+                        'gross' => 0.0,
+                        'discounts' => 0.0,
+                        'refunds' => 0.0,
+                        'net' => 0.0,
+                        'taxes' => 0.0,
+                        'shipping' => 0.0,
+                        'sales' => 0.0,
+                        'cogs' => 0.0,
+                        'margin' => 0.0
+                    ];
+                }
+                
+                $currencyValue = $row['totalPriceSet']['shopMoney']['currencyCode'] ?? $currency;
+                if ($currencyValue) $currency = $currencyValue;
+                
+                // Calculate order totals
+                $orderGross = 0.0;
+                $orderCogs = 0.0;
+                
+                if (!empty($row['lineItems'])) {
+                    foreach ($row['lineItems'] as $li) {
+                        $qty = (float)($li['quantity'] ?? 0);
+                        $price = (float)($li['originalUnitPriceSet']['shopMoney']['amount'] ?? 0);
+                        $orderGross += ($price * $qty);
+                        
+                        $unitCost = (float)($li['variant']['inventoryItem']['unitCost']['amount'] ?? 0);
+                        $orderCogs += ($unitCost * $qty);
+                    }
+                }
+                
+                $orderDiscounts = (float)($row['totalDiscountsSet']['shopMoney']['amount'] ?? 0);
+                $orderRefunds = (float)($row['totalRefundedSet']['shopMoney']['amount'] ?? 0);
+                $orderTaxes = (float)($row['totalTaxSet']['shopMoney']['amount'] ?? 0);
+                $orderShipping = (float)($row['totalShippingPriceSet']['shopMoney']['amount'] ?? 0);
+                $orderNet = $orderGross - $orderDiscounts - $orderRefunds;
+                $orderSales = $orderNet + $orderTaxes;
+                $orderMargin = $orderNet - $orderCogs;
+                
+                // Aggregate into channel group
+                $channelGroups[$channel]['total_orders']++;
+                $channelGroups[$channel]['gross'] += $orderGross;
+                $channelGroups[$channel]['discounts'] += $orderDiscounts;
+                $channelGroups[$channel]['refunds'] += $orderRefunds;
+                $channelGroups[$channel]['net'] += $orderNet;
+                $channelGroups[$channel]['taxes'] += $orderTaxes;
+                $channelGroups[$channel]['shipping'] += $orderShipping;
+                $channelGroups[$channel]['sales'] += $orderSales;
+                $channelGroups[$channel]['cogs'] += $orderCogs;
+                $channelGroups[$channel]['margin'] += $orderMargin;
+            }
+            
+            // Convert to array and format (filter out empty channels)
+            $data = [];
+            foreach ($channelGroups as $group) {
+                // Skip channels with no orders
+                if ($group['total_orders'] == 0) continue;
+                
+                $data[] = [
+                    'channel' => $group['channel'],
+                    'image' => $group['image'],
+                    'total_orders' => $group['total_orders'],
+                    'total_gross_sales' => ['amount' => number_format($group['gross'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_discounts' => ['amount' => number_format($group['discounts'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_refunds' => ['amount' => number_format($group['refunds'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_net_sales' => ['amount' => number_format($group['net'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_taxes' => ['amount' => number_format($group['taxes'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_shipping' => ['amount' => number_format($group['shipping'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_sales' => ['amount' => number_format($group['sales'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_cost_of_goods_sold' => ['amount' => number_format($group['cogs'], 2, '.', ''), 'currencyCode' => $currency],
+                    'total_gross_margin' => ['amount' => number_format($group['margin'], 2, '.', ''), 'currencyCode' => $currency]
+                ];
+            }
+            
+            error_log("sales_by_channel: Generated " . count($data) . " channel groups (filtered)");
+        }
+
         if ($dataset === 'sales_summary' || $dataset === 'monthly_sales' || $dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping') {
             $groups = [];
             $grandTotals = [
@@ -1693,15 +1938,16 @@ class ReportBuilderService
                 $channel = ($dataset === 'monthly_sales_channel') ? ($row['app']['name'] ?? 'Other') : '';
 
                 // Shipping country and state for Monthly sales by shipping country, state
+                // Normalize to avoid duplicate rows (e.g. "Gujarat" vs "Gujarat " or province vs provinceCode)
                 $shippingCountry = '';
                 $shippingState = '';
                 if ($dataset === 'monthly_sales_shipping') {
-                    $addr = $row['shippingAddress'] ?? [];
-                    $shippingCountry = $addr['country'] ?? 'Unknown';
-                    $shippingState = $addr['province'] ?? '';
-                    if ($shippingState === '') {
-                        $shippingState = $addr['provinceCode'] ?? '';
+                    $addr = $row['shippingAddress'] ?? $row['shipping_address'] ?? [];
+                    $shippingCountry = trim((string)($addr['country'] ?? 'Unknown'));
+                    if ($shippingCountry === '') {
+                        $shippingCountry = 'Unknown';
                     }
+                    $shippingState = trim((string)($addr['province'] ?? $addr['provinceCode'] ?? ''));
                 }
 
                 // POS User Name Logic - downgraded due to API scope restrictions
@@ -1740,10 +1986,14 @@ class ReportBuilderService
                 }
 
                 if ($groupKey !== null && !isset($groups[$groupKey])) {
+                    // Map channel to icon/image
+                    $channelImage = $this->getChannelImage($channel);
+                    
                     $groups[$groupKey] = [
                         'month_date' => $monthLabel,
                         'year' => $yearLabel,
                         'channel' => $channel,
+                        'image' => $channelImage,
                         'pos_location_name' => $posLocation,
                         'user_name' => $posUserName,
                         'order_shipping_country' => $shippingCountry,
@@ -2014,29 +2264,30 @@ class ReportBuilderService
                     return ['amount' => number_format($val, 2, '.', ''), 'currencyCode' => $currency];
                 };
 
-                // Deduplication logic: Aggressively cleanup duplicates that visual look identical.
-                // User requested to "delete one fake row", so we discard subsequent matches.
+                // Deduplicate groups for monthly_sales_shipping by merging any with same (month, country, state) - fixes duplicate rows from key encoding/whitespace
                 if ($dataset === 'monthly_sales_shipping') {
                     $merged = [];
-                    foreach ($groups as $g) {
-                        // Generate key based on normalized display values
-                        $countryRaw = $g['order_shipping_country'] ?? '';
-                        $stateRaw = $g['order_shipping_state'] ?? '';
-                        
-                        $normCountry = strtoupper(trim($countryRaw));
-                        $normState = strtoupper(trim($stateRaw));
-                        
-                        $canon = $g['month_sort'] . '||' . $normCountry . '||' . $normState;
-                        
+                    foreach ($groups as $key => $g) {
+                        $canon = $g['month_sort'] . "\0" . trim((string)($g['order_shipping_country'] ?? '')) . "\0" . trim((string)($g['order_shipping_state'] ?? ''));
                         if (isset($merged[$canon])) {
-                            // Duplicate found. Discard it.
-                            continue;
+                            $m = &$merged[$canon];
+                            $m['total_orders'] += $g['total_orders'];
+                            $m['gross'] += $g['gross'];
+                            $m['discounts'] += $g['discounts'];
+                            $m['refunds'] += $g['refunds'];
+                            $m['net'] += $g['net'];
+                            $m['taxes'] += $g['taxes'];
+                            $m['shipping'] += $g['shipping'];
+                            $m['sales'] += $g['sales'];
+                            $m['cogs'] += $g['cogs'];
+                            $m['margin'] += $g['margin'];
                         } else {
                             $merged[$canon] = $g;
                         }
                     }
                     $groups = $merged;
                 }
+
                 // Sort groups by Month DESC, then Secondary Key ASC
                 uasort($groups, function($a, $b) use ($dataset) {
                     if ($a['month_sort'] === $b['month_sort']) {
@@ -2083,6 +2334,8 @@ class ReportBuilderService
                                 'product_title' => '',
                                 'variant_title' => '',
                                 'product_type' => '',
+                                'order_shipping_country' => '',
+                                'order_shipping_state' => '',
                                 'total_quantity' => $mt['quantity'] ?? '',
                                 'total_orders' => $mt['orders'],
                                 'total_gross_sales' => $fmt($mt['gross']),
@@ -2230,6 +2483,8 @@ class ReportBuilderService
                         'user_name' => '',
                         'product_title' => '',
                         'variant_title' => '',
+                        'order_shipping_country' => '',
+                        'order_shipping_state' => '',
                         'total_orders' => $yt['orders'],
                         'total_gross_sales' => $fmt($yt['gross']),
                         'total_discounts' => $fmt($yt['discounts']),
@@ -3034,7 +3289,7 @@ class ReportBuilderService
         }
 
         // For Standard Reports, add the Aggregated Parents to Data
-        if (!$isChildRowReport && !in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_cohorts', 'aov_time', 'customers_by_country', 'products_by_type', 'products_vendor', 'inventory_by_product', 'inventory_by_vendor'])) {
+        if (!$isChildRowReport && !in_array($dataset, ['sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_cohorts', 'aov_time', 'customers_by_country', 'products_by_type', 'products_vendor', 'inventory_by_product', 'inventory_by_vendor'])) {
             error_log("ReportBuilderService::processBulkData - Merging " . count($parentsMap) . " parents into final data");
             foreach ($parentsMap as $p) {
                 // Apply Filters to Parents (e.g. Order Date)
@@ -3230,7 +3485,11 @@ class ReportBuilderService
             }
 
             // Valid value check: allowed null/empty/zero for comparison
-            if ($nodeValue === '__NO_MATCH__') return false; 
+            if ($nodeValue === '__NO_MATCH__') return false;
+            // When filtering by date, exclude rows that have no date (so past/range filter is strict)
+            if (($field === 'created_at' || $field === 'updated_at') && ($nodeValue === null || $nodeValue === '')) {
+                return false;
+            }
             if ($nodeValue === null) continue; 
 
             // Date Comparison
@@ -3312,8 +3571,7 @@ class ReportBuilderService
              }
          }
 
-        // REMOVED 'first: 250' to ensure ALL matching orders (e.g. including Jan 2026) are fetched by Bulk Operation.
-        return "{ orders(sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } shippingAddress { country province } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType } inventoryItem { unitCost { amount } } } } } } } } } }";
+        return "{ orders(first: 250, sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } shippingAddress { country province } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType } inventoryItem { unitCost { amount } } } } } } } } } }";
     }
 
     private function buildAovTimeQuery($filters, $columns, $groupBy, $aggregations)
@@ -3488,5 +3746,65 @@ class ReportBuilderService
          $query .= "} } } }";
          
          return $query;
+    }
+    public function buildRefundsDetailedQuery($filters, $columns)
+    {
+         // For Refunds Report, filter by updated_at instead of created_at
+         // to catch recent refunds on old orders.
+         if (isset($filters['created_at'])) {
+             $filters['updated_at'] = $filters['created_at'];
+             unset($filters['created_at']);
+         }
+
+         $searchQuery = $this->buildSearchQuery($filters, ['created_at', 'updated_at', 'status', 'tag']);
+         
+         if (strpos($searchQuery, 'status:') === false) {
+             if (empty($searchQuery)) {
+                 $searchQuery = "status:any";
+             } else {
+                 $searchQuery .= " AND status:any";
+             }
+         }
+         
+         // Fetch Refunds and LineItems (Note: refundLineItems cannot be nested in refunds list per Bulk API constraints)
+         // Sort by UPDATED_AT to catch recent refunds on older orders
+         return "{ orders(first: 250, sortKey: UPDATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } customer { firstName lastName displayName email } note refunds { note createdAt } totalRefundedSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id title quantity variant { title sku price } originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } } } } } } } }";
+    }
+    
+    /**
+     * Map sales channel names to icon URLs
+     */
+    private function getChannelImage($channel)
+    {
+        $channel = strtolower(trim($channel));
+        
+        // Map common channel names to icons
+        $iconMap = [
+            'online store' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/online-store-icon.svg',
+            'pos' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/pos-icon.svg',
+            'point of sale' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/pos-icon.svg',
+            'mobile' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/mobile-icon.svg',
+            'facebook' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/facebook-icon.svg',
+            'instagram' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/instagram-icon.svg',
+            'amazon' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/amazon-icon.svg',
+            'ebay' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/ebay-icon.svg',
+            'google' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/google-icon.svg',
+            'draft order' => 'https://cdn.shopify.com/s/files/1/0757/9955/files/draft-icon.svg',
+        ];
+        
+        // Check for exact match
+        if (isset($iconMap[$channel])) {
+            return $iconMap[$channel];
+        }
+        
+        // Check for partial matches
+        foreach ($iconMap as $key => $icon) {
+            if (strpos($channel, $key) !== false) {
+                return $icon;
+            }
+        }
+        
+        // Default icon for unknown channels
+        return 'https://cdn.shopify.com/s/files/1/0757/9955/files/default-channel-icon.svg';
     }
 }

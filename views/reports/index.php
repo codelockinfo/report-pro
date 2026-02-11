@@ -276,7 +276,7 @@ $favoritesCount = count(array_filter($allReports, fn($r) => $r['is_favorite']));
         padding: 6px 6px;
     }
     
-    .Polaris-Button--plain:hover {
+    .Polaris-Button--plain:h    over {
         background: #f6f6f7;
         border-color: #8c9196;
     }
