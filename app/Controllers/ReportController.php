@@ -836,11 +836,7 @@ class ReportController extends Controller
             }
             
             // Read runtime config from request body
-            $rawInput = file_get_contents('php://input');
-            error_log("ReportController::run - RAW INPUT: " . substr($rawInput, 0, 1000));
-            error_log("ReportController::run - GET PARAMS: " . json_encode($_GET));
-            
-            $input = json_decode($rawInput, true) ?? [];
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
             $runtimeConfig = [];
             
             // Check for filters in request body
