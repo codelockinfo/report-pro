@@ -946,6 +946,27 @@ class ReportController extends Controller
             // Update database to persist the fix
             $reportModel->update($id, ['query_config' => json_encode($config)]);
         }
+        
+        // FORCE OVERRIDE: Ensure "Sales by channel" uses processing dataset, not raw "orders"
+        if ($report['name'] === 'Sales by channel') {
+            $config['dataset'] = 'sales_by_channel';
+            $config['columns'] = [
+                'channel', 
+                'total_orders', 
+                'total_gross_sales', 
+                'total_discounts', 
+                'total_refunds', 
+                'total_net_sales', 
+                'total_taxes', 
+                'total_shipping', 
+                'total_sales', 
+                'total_cost_of_goods_sold', 
+                'total_gross_margin'
+            ];
+            $columns = $config['columns'];
+            // Update database to persist the fix
+            $reportModel->update($id, ['query_config' => json_encode($config)]);
+        }
 
         // FALLBACK FIX: For Inventory by SKU, force columns if they look wrong
         if (($report['category'] === 'inventory_sku' || $report['name'] === 'Inventory by SKU') && !in_array('sku', $columns)) {
