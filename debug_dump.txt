@@ -13912,3 +13912,339 @@ Order Node: Array
 )
 
 
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6322125635761
+    [createdAt] => 2026-02-03T13:27:38Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1532.82
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8211829686449
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6320526852273
+    [createdAt] => 2026-02-02T12:14:08Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1378.82
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8211829686449
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6306768224433
+    [createdAt] => 2026-01-24T06:38:27Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1097.4
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8879026995377
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6322125635761
+    [createdAt] => 2026-02-03T13:27:38Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1532.82
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8211829686449
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6320526852273
+    [createdAt] => 2026-02-02T12:14:08Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1378.82
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8211829686449
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6306768224433
+    [createdAt] => 2026-01-24T06:38:27Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1097.4
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8879026995377
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6322125635761
+    [createdAt] => 2026-02-03T13:27:38Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1532.82
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8211829686449
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6320526852273
+    [createdAt] => 2026-02-02T12:14:08Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1378.82
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8211829686449
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6306768224433
+    [createdAt] => 2026-01-24T06:38:27Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1097.4
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8879026995377
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6322125635761
+    [createdAt] => 2026-02-03T13:27:38Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1532.82
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8211829686449
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6320526852273
+    [createdAt] => 2026-02-02T12:14:08Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1378.82
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8211829686449
+)
+
+
+Order Node: Array
+(
+    [id] => gid://shopify/Order/6306768224433
+    [createdAt] => 2026-01-24T06:38:27Z
+    [totalPriceSet] => Array
+        (
+            [shopMoney] => Array
+                (
+                    [amount] => 1097.4
+                    [currencyCode] => INR
+                )
+
+        )
+
+    [shippingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [billingAddress] => Array
+        (
+            [country] => India
+        )
+
+    [__parentId] => gid://shopify/Customer/8879026995377
+)
+
+
