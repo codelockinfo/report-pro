@@ -2,25 +2,32 @@
 // Check Scopes Live Script
 // This script verifies the actual Shopify API Scopes granted to the app.
 
-require_once 'app/Core/Database.php';
+// Disable Framework Loading to prevent conflicts/missing classes
+// require_once 'app/Core/Database.php'; 
 
 // Load Config
 $config = require 'config/config.php';
 
-// Load .env if needed (for DB credentials)
+// Load .env manually to get DB credentials
 if (file_exists('.env')) {
     $lines = file('.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) continue;
+        $line = trim($line);
+        if (empty($line) || strpos($line, '#') === 0) continue;
         if (strpos($line, '=') !== false) {
             list($name, $value) = explode('=', $line, 2);
-            putenv(trim($name) . '=' . trim($value, '"\' '));
+            $name = trim($name);
+            $value = trim($value);
+            $value = trim($value, '"\'');
+            if (!empty($name)) {
+                putenv($name . '=' . $value);
+            }
         }
     }
 }
 
 try {
-    // Connect DB
+    // Connect DB using Raw PDO
     $dsn = "mysql:host=" . (getenv('DB_HOST') ?: $config['database']['host']) . 
            ";dbname=" . (getenv('DB_NAME') ?: $config['database']['name']) . 
            ";charset=utf8mb4";
@@ -29,11 +36,14 @@ try {
         getenv('DB_USER') ?: $config['database']['user'], 
         getenv('DB_PASSWORD') ?: $config['database']['password']
     );
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     $stmt = $pdo->query("SELECT shop_domain, access_token FROM shops WHERE id = 1 LIMIT 1");
     $shop = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$shop) die("Error: No shop found in database.");
+    if (!$shop) {
+        die("Error: No shop found in database.");
+    }
 
     $domain = $shop['shop_domain'];
     $token = $shop['access_token'];
@@ -76,9 +86,12 @@ try {
         echo "<h2 style='color:green'>SUCCESS: 'read_all_orders' is PRESENT.</h2>";
     } else {
         echo "<h2 style='color:red'>FAILURE: 'read_all_orders' is MISSING.</h2>";
-        echo "<p>Please verify you ran the 'Fix Permissions' script on the live server and clicked 'Update' on the Shopify prompt.</p>";
+        // Also verify what config expects
+        $configScopes = $config['shopify']['scopes'] ?? '';
+        echo "<p>Config expects: " . htmlspecialchars($configScopes) . "</p>";
     }
 
 } catch (Exception $e) {
-    echo "Error: " . $e->getMessage();
+    echo "<h3>Fatal Error:</h3>";
+    echo $e->getMessage();
 }
