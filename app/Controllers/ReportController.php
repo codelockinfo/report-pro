@@ -680,6 +680,61 @@ class ReportController extends Controller
              $report = $reportModel->find($id);
         }
 
+        // ==========================================
+        // FORCE FIXES FOR VENDOR AND SKU REPORTS
+        // ==========================================
+
+        // AUTO-PATCH: Fix Monthly Sales by Vendor
+        // Forces the report to use the correct dataset and columns if it's currently wrong
+        if (($report['category'] === 'sales_vendor' || $report['name'] === 'Monthly sales by vendor') && ($config['dataset'] !== 'monthly_sales_vendor')) {
+             error_log("ReportController::run - FORCE PATCHING Monthly sales by vendor report {$id}");
+             $config['dataset'] = 'monthly_sales_vendor';
+             $config['columns'] = [
+                'month_date', 
+                'vendor',
+                'total_quantity',
+                'total_orders', 
+                'total_gross_sales', 
+                'total_discounts', 
+                'total_refunds', 
+                'total_net_sales', 
+                'total_taxes', 
+                'total_sales', 
+                'total_cost_of_goods_sold', 
+                'total_gross_margin'
+             ];
+             // Save to DB so it persists
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             // Reload to ensure execution uses new config
+             $report = $reportModel->find($id);
+        }
+
+        // AUTO-PATCH: Fix Monthly Sales by SKU
+        // Forces the report to use the correct dataset and columns if it's currently wrong
+        if (($report['category'] === 'sales_sku' || $report['name'] === 'Monthly sales by SKU') && ($config['dataset'] !== 'monthly_sales_sku')) {
+             error_log("ReportController::run - FORCE PATCHING Monthly sales by SKU report {$id}");
+             $config['dataset'] = 'monthly_sales_sku';
+             $config['columns'] = [
+                'month_date', 
+                'product_title',
+                'sku',
+                'total_quantity',
+                'total_orders', 
+                'total_gross_sales', 
+                'total_discounts', 
+                'total_refunds', 
+                'total_net_sales', 
+                'total_taxes', 
+                'total_sales', 
+                'total_cost_of_goods_sold', 
+                'total_gross_margin'
+             ];
+             // Save to DB so it persists
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             // Reload to ensure execution uses new config
+             $report = $reportModel->find($id);
+        }
+
 
 
         // DEBUG: Log Report Details
@@ -966,6 +1021,47 @@ class ReportController extends Controller
             $columns = $config['columns'];
             // Update database to persist the fix
             $reportModel->update($id, ['query_config' => json_encode($config)]);
+        }
+
+        // FORCE OVERRIDE: Ensure "Monthly sales by vendor" has correct columns
+        if ($report['category'] === 'sales_vendor' || $report['name'] === 'Monthly sales by vendor') {
+            $config['dataset'] = 'monthly_sales_vendor';
+            $config['columns'] = [
+                'month_date', 
+                'vendor',
+                'total_quantity',
+                'total_orders', 
+                'total_gross_sales', 
+                'total_discounts', 
+                'total_refunds', 
+                'total_net_sales', 
+                'total_taxes', 
+                'total_sales', 
+                'total_cost_of_goods_sold', 
+                'total_gross_margin'
+            ];
+            $columns = $config['columns'];
+        }
+
+        // FORCE OVERRIDE: Ensure "Monthly sales by SKU" has correct columns
+        if ($report['category'] === 'sales_sku' || $report['name'] === 'Monthly sales by SKU') {
+            $config['dataset'] = 'monthly_sales_sku';
+            $config['columns'] = [
+                'month_date', 
+                'product_title',
+                'sku',
+                'total_quantity',
+                'total_orders', 
+                'total_gross_sales', 
+                'total_discounts', 
+                'total_refunds', 
+                'total_net_sales', 
+                'total_taxes', 
+                'total_sales', 
+                'total_cost_of_goods_sold', 
+                'total_gross_margin'
+            ];
+            $columns = $config['columns'];
         }
 
         // FALLBACK FIX: For Inventory by SKU, force columns if they look wrong
