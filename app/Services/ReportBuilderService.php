@@ -73,6 +73,8 @@ class ReportBuilderService
             case 'monthly_sales_product_type':
             case 'monthly_sales_product_variant':
             case 'monthly_sales_shipping':
+            case 'monthly_sales_vendor':
+            case 'monthly_sales_sku':
             case 'sales_summary':
                 return $this->buildSalesSummaryQuery($filters, $columns, $groupBy, $aggregations);
             case 'refunds_detailed':
@@ -1489,7 +1491,7 @@ class ReportBuilderService
                     if (isset($parentsMap[$parentId])) {
                         if ($dataset === 'customers' || $dataset === 'customers_by_country' || $dataset === 'monthly_cohorts') {
                              $this->aggregateCustomerOrder($parentsMap[$parentId], $decoded);
-                        } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping'])) {
+                        } elseif (in_array($dataset, ['sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku'])) {
                              // Aggregate Line Items into Order
                              if (isset($decoded['quantity'])) {
                                  if (!isset($parentsMap[$parentId]['lineItems'])) {
@@ -1593,7 +1595,7 @@ class ReportBuilderService
                             foreach ($orphanedChildren[$id] as $child) {
                                 if ($dataset === 'customers' || $dataset === 'customers_by_country' || $dataset === 'monthly_cohorts') {
                                     $this->aggregateCustomerOrder($parentsMap[$id], $child);
-                                 } elseif (in_array($dataset, ['sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping'])) {
+                                 } elseif (in_array($dataset, ['sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku'])) {
                                      // Aggregate Line Items into Order
                                      if (isset($child['quantity'])) {
                                          if (!isset($parentsMap[$id]['lineItems'])) {
@@ -1875,7 +1877,7 @@ class ReportBuilderService
             error_log("sales_by_channel: Generated " . count($data) . " channel groups (filtered)");
         }
 
-        if ($dataset === 'sales_summary' || $dataset === 'monthly_sales' || $dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping') {
+        if ($dataset === 'sales_summary' || $dataset === 'monthly_sales' || $dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku') {
             $groups = [];
             $grandTotals = [
                 'orders' => 0, 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
@@ -1976,7 +1978,7 @@ class ReportBuilderService
                     $groupKey = $monthKey . '||' . $posUserName;
                 } elseif ($dataset === 'monthly_sales_shipping') {
                     $groupKey = $monthKey . '||' . $shippingCountry . '||' . $shippingState;
-                } elseif ($dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant') {
+                } elseif ($dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku') {
                     // For Product Report, we split the order into multiple groups (one per product).
                     // So we do NOT have a single groupKey for this iteration.
                     // We set it to NULL to skip the default group initialization.
@@ -2012,8 +2014,24 @@ class ReportBuilderService
                 $orderCogs = 0.0;
                 $liCosts = []; // id => unitCost
                 
-                if (!empty($row['lineItems'])) {
-                    foreach ($row['lineItems'] as $li) {
+                // Handle both connection format (edges/node) and aggregated array format
+                $lineItemsArray = [];
+                $lineItems = $row['lineItems'] ?? [];
+                
+                if (isset($lineItems['edges']) && is_array($lineItems['edges'])) {
+                    // GraphQL connection format - unwrap edges/node
+                    foreach ($lineItems['edges'] as $edge) {
+                        if (isset($edge['node'])) {
+                            $lineItemsArray[] = $edge['node'];
+                        }
+                    }
+                } elseif (is_array($lineItems) && !isset($lineItems['edges'])) {
+                    // Already a flat array (from aggregation)
+                    $lineItemsArray = $lineItems;
+                }
+                
+                if (!empty($lineItemsArray)) {
+                    foreach ($lineItemsArray as $li) {
                         $qty = (float)($li['quantity'] ?? 0);
                         $price = (float)($li['originalUnitPriceSet']['shopMoney']['amount'] ?? 0);
                         $orderGross += ($price * $qty);
@@ -2069,9 +2087,11 @@ class ReportBuilderService
                 // BUT: For monthly_sales_product, we are splitting the order.
                 // We must differentiate logic here.
                 
-                $isProductReport = ($dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant');
+                $isProductReport = ($dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku');
                 $isProductTypeReport = ($dataset === 'monthly_sales_product_type');
                 $isProductVariantReport = ($dataset === 'monthly_sales_product_variant');
+                $isVendorReport = ($dataset === 'monthly_sales_vendor');
+                $isSkuReport = ($dataset === 'monthly_sales_sku');
                 if (!$isProductReport && !empty($reportId)) {
                      // Check columns for product_title as fallback
                      // We need to access $config which isn't easily available here without fetching report again?
@@ -2085,8 +2105,24 @@ class ReportBuilderService
                     $validItems = [];
                     $orderGrandGross = 0.0;
                     
-                     if (!empty($row['lineItems'])) {
-                        foreach ($row['lineItems'] as $index => $li) {
+                     // Handle both connection format (edges/node) and aggregated array format
+                     $lineItemsArray = [];
+                     $lineItems = $row['lineItems'] ?? [];
+                     
+                     if (isset($lineItems['edges']) && is_array($lineItems['edges'])) {
+                         // GraphQL connection format - unwrap edges/node
+                         foreach ($lineItems['edges'] as $edge) {
+                             if (isset($edge['node'])) {
+                                 $lineItemsArray[] = $edge['node'];
+                             }
+                         }
+                     } elseif (is_array($lineItems) && !isset($lineItems['edges'])) {
+                         // Already a flat array (from aggregation)
+                         $lineItemsArray = $lineItems;
+                     }
+                     
+                     if (!empty($lineItemsArray)) {
+                        foreach ($lineItemsArray as $index => $li) {
                              // DEBUG: Log the first item of the first order found to see structure
                              if ($index === 0 && ($this->debugCounter ?? 0) < 10) {
                                   error_log("DEBUG monthly_sales_product Item: " . json_encode($li));
@@ -2121,10 +2157,21 @@ class ReportBuilderService
                                  $variantTitle = 'Default Title';
                              }
 
+
+                             // Extract vendor and SKU for vendor/SKU reports
+                             $vendor = $li['variant']['product']['vendor'] ?? 'Unknown Vendor';
+                             if (empty($vendor)) $vendor = 'No Vendor';
+                             
+                             $sku = $li['sku'] ?? ($li['variant']['sku'] ?? '');
+                             if (empty($sku)) $sku = 'No SKU';
+
+
                              $validItems[] = [
                                  'title' => $prodTitle,
                                  'variant_title' => $variantTitle,
                                  'product_type' => $pType,
+                                 'vendor' => $vendor,
+                                 'sku' => $sku,
                                  'quantity' => $q,
                                  'gross' => $gross,
                                  'cost' => $totalCost
@@ -2144,6 +2191,8 @@ class ReportBuilderService
                             'title' => 'Unknown Product (Sync Error)', // Differentiate from No Data
                             'variant_title' => '',
                             'product_type' => 'Unknown Type',
+                            'vendor' => 'Unknown Vendor',
+                            'sku' => 'No SKU',
                             'quantity' => 1,
                             'gross' => $orderNetSub + $orderDiscounts, 
                             'cost' => 0
@@ -2166,6 +2215,16 @@ class ReportBuilderService
                         $itemKey = $item['title'];
                         if ($isProductTypeReport) $itemKey = $item['product_type'];
                         if ($isProductVariantReport) $itemKey = $item['title'] . ' || ' . $item['variant_title'];
+                        if ($isVendorReport) $itemKey = $item['vendor'];
+                        if ($isSkuReport) {
+                            // For SKU reports, if SKU is empty or "No SKU", include product title to avoid grouping different products
+                            if (empty($item['sku']) || $item['sku'] === 'No SKU') {
+                                $itemKey = $item['sku'] . ' || ' . $item['title'];
+                            } else {
+                                $itemKey = $item['sku'];
+                            }
+                        }
+
 
                         $pKey = $monthKey . '||' . $itemKey;
 
@@ -2176,6 +2235,8 @@ class ReportBuilderService
                                 'product_title' => $item['title'],
                                 'variant_title' => $item['variant_title'],
                                 'product_type' => $item['product_type'],
+                                'vendor' => $item['vendor'],
+                                'sku' => $item['sku'],
                                 'month_sort' => $monthKey,
                                 'total_quantity' => 0, 'total_orders' => 0, // Track unique orders? We'll just increment orders count
                                 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
@@ -2258,7 +2319,7 @@ class ReportBuilderService
                     'total_cost_of_goods_sold' => ['amount' => number_format($grandTotals['cogs'], 2, '.', ''), 'currencyCode' => $currency],
                     'total_gross_margin' => ['amount' => number_format($grandTotals['margin'], 2, '.', ''), 'currencyCode' => $currency],
                 ]];
-            } elseif ($dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping') {
+            } elseif ($dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku') {
                 // Formatter helper
                 $fmt = function($val) use ($currency) {
                     return ['amount' => number_format($val, 2, '.', ''), 'currencyCode' => $currency];
@@ -2294,6 +2355,8 @@ class ReportBuilderService
                         if ($dataset === 'monthly_sales_pos_location') return strcmp($a['pos_location_name'], $b['pos_location_name']);
                         if ($dataset === 'monthly_sales_pos_user') return strcmp($a['user_name'], $b['user_name']);
                         if ($dataset === 'monthly_sales_product') return strcmp($a['product_title'], $b['product_title']);
+                        if ($dataset === 'monthly_sales_vendor') return strcmp($a['vendor'], $b['vendor']);
+                        if ($dataset === 'monthly_sales_sku') return strcmp($a['sku'], $b['sku']);
                         if ($dataset === 'monthly_sales_product_variant') {
                              if ($a['product_title'] === $b['product_title']) {
                                   return strcmp($a['variant_title'], $b['variant_title']);
@@ -2334,6 +2397,8 @@ class ReportBuilderService
                                 'product_title' => '',
                                 'variant_title' => '',
                                 'product_type' => '',
+                                'vendor' => '',
+                                'sku' => '',
                                 'order_shipping_country' => '',
                                 'order_shipping_state' => '',
                                 'total_quantity' => $mt['quantity'] ?? '',
@@ -2397,6 +2462,13 @@ class ReportBuilderService
                         $row['product_type'] = $g['product_type'];
                         $row['Product type'] = $g['product_type']; // Case variation for safety
                         $row['total_quantity'] = $g['total_quantity'];
+                    } elseif ($dataset === 'monthly_sales_vendor') {
+                        $row['vendor'] = $g['vendor'];
+                        $row['total_quantity'] = $g['total_quantity'];
+                    } elseif ($dataset === 'monthly_sales_sku') {
+                        $row['sku'] = $g['sku'];
+                        $row['product_title'] = $g['product_title'];
+                        $row['total_quantity'] = $g['total_quantity'];
                     } else {
                         $row['channel'] = $g['channel'];
                     }
@@ -2457,6 +2529,8 @@ class ReportBuilderService
                         'product_title' => '',
                         'variant_title' => '',
                         'product_type' => '',
+                        'vendor' => '',
+                        'sku' => '',
                         'total_quantity' => $mt['quantity'],
                         'total_orders' => $mt['orders'],
                         'total_gross_sales' => $fmt($mt['gross']),
@@ -2483,6 +2557,9 @@ class ReportBuilderService
                         'user_name' => '',
                         'product_title' => '',
                         'variant_title' => '',
+                        'product_type' => '',
+                        'vendor' => '',
+                        'sku' => '',
                         'order_shipping_country' => '',
                         'order_shipping_state' => '',
                         'total_orders' => $yt['orders'],
@@ -3289,7 +3366,7 @@ class ReportBuilderService
         }
 
         // For Standard Reports, add the Aggregated Parents to Data
-        if (!$isChildRowReport && !in_array($dataset, ['sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_cohorts', 'aov_time', 'customers_by_country', 'products_by_type', 'products_vendor', 'inventory_by_product', 'inventory_by_vendor'])) {
+        if (!$isChildRowReport && !in_array($dataset, ['sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku', 'monthly_cohorts', 'aov_time', 'customers_by_country', 'products_by_type', 'products_vendor', 'inventory_by_product', 'inventory_by_vendor'])) {
             error_log("ReportBuilderService::processBulkData - Merging " . count($parentsMap) . " parents into final data");
             foreach ($parentsMap as $p) {
                 // Apply Filters to Parents (e.g. Order Date)
@@ -3571,7 +3648,7 @@ class ReportBuilderService
              }
          }
 
-        return "{ orders(first: 250, sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } shippingAddress { country province } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType } inventoryItem { unitCost { amount } } } } } } } } } }";
+        return "{ orders(first: 250, sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } shippingAddress { country province } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType vendor } inventoryItem { unitCost { amount } } } } } } } } } }";
     }
 
     private function buildAovTimeQuery($filters, $columns, $groupBy, $aggregations)
