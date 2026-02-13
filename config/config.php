@@ -32,6 +32,7 @@ return [
         'charset' => 'utf8mb4',
     ],
     
+    
     // Security
     'secret_key' => getenv('APP_SECRET_KEY') ?: 'change-this-secret-key-in-production',
     'encryption_key' => getenv('APP_ENCRYPTION_KEY') ?: 'change-this-encryption-key-in-production',
