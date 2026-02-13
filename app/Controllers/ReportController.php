@@ -1006,6 +1006,24 @@ class ReportController extends Controller
                  $report['query_config'] = json_encode($config);
             }
             
+            // FINAL FORCE OVERRIDE: Ensure "Sales by product" uses sales_by_product dataset
+            if ($report['name'] === 'Sales by product') {
+                 error_log("ReportController::run - FINAL FORCE: Setting Sales by product to use sales_by_product dataset");
+                 $config['dataset'] = 'sales_by_product';
+                 $config['columns'] = ['image', 'product_title', 'total_quantity', 'total_orders', 'total_gross_sales', 'total_discounts', 'total_refunds', 'total_net_sales', 'total_taxes', 'total_sales', 'total_cost_of_goods_sold', 'total_gross_margin'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+
+            // FINAL FORCE OVERRIDE: Ensure "Monthly sales by product" uses monthly_sales_product dataset
+            if (stripos($report['name']??'', 'Monthly sales by product') !== false) {
+                 error_log("ReportController::run - FINAL FORCE: Setting Monthly sales by product to use monthly_sales_product dataset");
+                 $config['dataset'] = 'monthly_sales_product';
+                 $config['columns'] = ['month_date', 'image', 'product_title', 'total_quantity', 'total_orders', 'total_gross_sales', 'total_discounts', 'total_refunds', 'total_net_sales', 'total_taxes', 'total_sales', 'total_cost_of_goods_sold', 'total_gross_margin'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+            
             // Read runtime config from request body
             $input = json_decode(file_get_contents('php://input'), true) ?? [];
             $runtimeConfig = [];
@@ -1021,11 +1039,12 @@ class ReportController extends Controller
             $dataset = $config['dataset'] ?? '';
             $isPendingFulfillmentReport = ($dataset === 'pending_fulfillment_by_variant') && 
                                            ($report['category'] === 'pending_fulfillment' || $report['name'] === 'Items pending fulfillment');
+            $isSalesByProductReport = ($dataset === 'sales_by_product');
             
             // Accept date range from GET or POST so filters work when Run report is used with a date range
             $startDate = $_GET['start_date'] ?? $input['start_date'] ?? null;
             $endDate = $_GET['end_date'] ?? $input['end_date'] ?? null;
-            if ($startDate !== null && $endDate !== null && !$isPendingFulfillmentReport && empty($runtimeConfig['filters'])) {
+            if ($startDate !== null && $endDate !== null && !$isPendingFulfillmentReport && !$isSalesByProductReport && empty($runtimeConfig['filters'])) {
                 error_log("ReportController::run - Converting date params: start={$startDate}, end={$endDate}");
                 $runtimeConfig['filters'] = [
                     [
@@ -1626,6 +1645,28 @@ class ReportController extends Controller
                 'dataset' => 'monthly_sales_product',
                 'columns' => [
                     'month_date', 
+                    'product_title',
+                    'total_quantity',
+                    'total_orders', 
+                    'total_gross_sales', 
+                    'total_discounts', 
+                    'total_refunds', 
+                    'total_net_sales', 
+                    'total_taxes', 
+                    'total_sales', 
+                    'total_cost_of_goods_sold', 
+                    'total_gross_margin'
+                ]
+            ]
+        ];
+
+        // Sales by product report
+        $reports['sales_by_product'] = [
+            'name' => 'Sales by product',
+            'description' => 'Sales breakdown by product',
+            'config' => [
+                'dataset' => 'sales_by_product',
+                'columns' => [
                     'product_title',
                     'total_quantity',
                     'total_orders', 

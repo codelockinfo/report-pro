@@ -2337,8 +2337,13 @@ $baseUrl = rtrim($appUrl, '/');
         const columnDefs = {
                 'id': { label: 'Id', formatter: val => formatId(val) },
                 'image': { 
-                    label: 'Image', 
-                    formatter: val => val ? `<img src="${val}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" alt="" loading="lazy" />` : '<div style="width: 40px; height: 40px; background: #f1f2f3; border-radius: 4px;"></div>' 
+                    label: 'Image',
+                    formatter: (val, row) => {
+                        const rowLabel = (row.month_date || row.month_first_order_date || row.product_title || '').toString().toUpperCase();
+                        const isSummary = row.is_summary === true || rowLabel.includes('TOTAL') || rowLabel.includes('SUMMARY');
+                        if (isSummary) return '';
+                        return val ? `<img src="${val}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" alt="" loading="lazy" />` : '<div style="width: 40px; height: 40px; background: #f1f2f3; border-radius: 4px;"></div>';
+                    }
                 },
                     'created_at': { label: 'DAY Created at', key: 'createdAt', formatter: val => formatDate(val) },
                     'updated_at': { label: 'Last Updated', key: 'updatedAt', formatter: val => formatDate(val) },
