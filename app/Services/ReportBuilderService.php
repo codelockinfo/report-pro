@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Services;
 
 use App\Models\Report;
@@ -64,6 +63,8 @@ class ReportBuilderService
             case 'sales_by_variant':
                 return $this->buildLineItemsQuery($filters, $columns, $groupBy, $aggregations);
             case 'sales_summary':
+            case 'sales_by_discount':
+            case 'sales_by_customer':
             case 'monthly_sales':
             case 'sales_by_channel':
             case 'monthly_sales_channel':
@@ -1050,7 +1051,8 @@ class ReportBuilderService
 
     private function processBulkData($operation, $fileData, $reportId = null, $dataset = 'orders')
     {
-        error_log("ReportBuilderService::processBulkData - Starting with " . strlen($fileData) . " bytes, Active Filters: " . json_encode($this->activeFilters) . " Dataset: $dataset");
+        $dataset = trim((string)$dataset);
+        error_log("ReportBuilderService::processBulkData - Starting with " . strlen($fileData) . " bytes, Dataset: $dataset");
         
         // Parser Logic Robustness
         $lines = [];
@@ -1593,9 +1595,9 @@ class ReportBuilderService
                         // Process orphans
                         if (isset($orphanedChildren[$id])) {
                             foreach ($orphanedChildren[$id] as $child) {
-                                if ($dataset === 'customers' || $dataset === 'customers_by_country' || $dataset === 'monthly_cohorts') {
+                                 if ($dataset === 'customers' || $dataset === 'customers_by_country' || $dataset === 'monthly_cohorts') {
                                     $this->aggregateCustomerOrder($parentsMap[$id], $child);
-                                 } elseif (in_array($dataset, ['sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku'])) {
+                                 } elseif (in_array(trim($dataset), ['sales_by_customer', 'sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku'])) {
                                      // Aggregate Line Items into Order
                                      if (isset($child['quantity'])) {
                                          if (!isset($parentsMap[$id]['lineItems'])) {
@@ -1877,7 +1879,7 @@ class ReportBuilderService
             error_log("sales_by_channel: Generated " . count($data) . " channel groups (filtered)");
         }
 
-        if ($dataset === 'sales_summary' || $dataset === 'monthly_sales' || $dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku') {
+        if ($dataset === 'sales_summary' || $dataset === 'monthly_sales' || $dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku' || $dataset === 'sales_by_customer') {
             $groups = [];
             $grandTotals = [
                 'orders' => 0, 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
@@ -1914,6 +1916,13 @@ class ReportBuilderService
                     }
                     continue;
                 }
+                
+                // For Customer Sales, squash everything into one 'month' group so we don't get month headers
+                if (trim($dataset) === 'sales_by_customer') {
+                    $monthKey = 'ALL';
+                    $monthLabel = ''; // Don't use "TOTAL" here to avoid row-level confusion
+                    $yearLabel = ''; 
+                }
 
                 // STRICT FILTER: For POS-specific reports, explicitly skip non-POS orders
                 // We check if the App Name contains "POS" or "Point of Sale"
@@ -1937,7 +1946,12 @@ class ReportBuilderService
                      $posLocation = 'POS (Unknown Location)';
                 }
                 
-                $channel = ($dataset === 'monthly_sales_channel') ? ($row['app']['name'] ?? 'Other') : '';
+                $rawChannel = $row['app']['name'] ?? 'Other';
+                $cName = '';
+                $cEmail = '';
+
+                // Aggressive Normalization
+                $channel = ($dataset === 'monthly_sales_channel') ? ucwords(strtolower(trim(preg_replace('/[^a-zA-Z0-9 ]/', '', $rawChannel)))) : '';
 
                 // Shipping country and state for Monthly sales by shipping country, state
                 // Normalize to avoid duplicate rows (e.g. "Gujarat" vs "Gujarat " or province vs provinceCode)
@@ -1956,9 +1970,7 @@ class ReportBuilderService
                 $posUserName = '';
                 if ($dataset === 'monthly_sales_pos_user') {
                     // staffMember access requires extra scopes often not present.
-                    // We removed the field from query to prevent crashes.
                     // Fallback to App Name (e.g. "Online Store", "Point of Sale")
-                    // This ensures non-POS orders are labeled correctly and POS orders show "Point of Sale" instead of an error.
                     $appName = $row['app']['name'] ?? 'Unknown';
                     
                     if (isset($row['staffMember']['firstName']) || isset($row['staffMember']['lastName'])) {
@@ -1974,14 +1986,58 @@ class ReportBuilderService
                     $groupKey = $monthKey . '||' . $posLocation;
                 } elseif ($dataset === 'monthly_sales_channel') {
                     $groupKey = $monthKey . '||' . $channel;
+                } elseif (trim($dataset) === 'sales_by_customer') {
+                    $cust = $row['customer'] ?? [];
+                    $cEmail = trim(strtolower($cust['email'] ?? ''));
+                    
+                    // Robust Name Extraction with Fallbacks
+                    $fName = trim($cust['firstName'] ?? '');
+                    $lName = trim($cust['lastName'] ?? '');
+                    $dName = trim($cust['displayName'] ?? '');
+                    
+                    // Filter out Shopify's "hyphen" placeholders
+                    if ($fName === '-') $fName = '';
+                    if ($lName === '-') $lName = '';
+                    
+                    $cName = trim($fName . ' ' . $lName);
+                    
+                    // Fallback to Display Name
+                    if ($cName === '' || $cName === '-') {
+                        $cName = $dName;
+                    }
+                    
+                    // Fallback to Shipping/Billing if customer object is empty
+                    if ($cName === '' || $cName === '-') {
+                        $fName = trim($row['shippingAddress']['firstName'] ?? $row['billingAddress']['firstName'] ?? '');
+                        $lName = trim($row['shippingAddress']['lastName'] ?? $row['billingAddress']['lastName'] ?? '');
+                        $cName = trim($fName . ' ' . $lName);
+                    }
+
+                    // Ultimate Fallback
+                    if ($cName === '' || $cName === '-' || $cName === ' - ') {
+                        $cName = 'Guest Customer';
+                    }
+                    
+                    if ($cEmail === '') {
+                        $cEmail = trim(strtolower($row['email'] ?? ''));
+                    }
+                    
+                    if ($cEmail === '') {
+                         $cEmail = 'guest_' . md5($cName . $row['id']); // Include ID to prevent merging unknowns
+                    }
+                    
+                    $groupKey = $cEmail;
+                    
+                    // DEBUG LOGGING
+                    if (($this->debugCounter2 ?? 0) < 20) {
+                        error_log("SalesByCustomer Processing: OrderID={$row['id']} Email={$cEmail} Name={$cName} GroupKey={$groupKey}");
+                        $this->debugCounter2 = ($this->debugCounter2 ?? 0) + 1;
+                    }
                 } elseif ($dataset === 'monthly_sales_pos_user') {
                     $groupKey = $monthKey . '||' . $posUserName;
                 } elseif ($dataset === 'monthly_sales_shipping') {
                     $groupKey = $monthKey . '||' . $shippingCountry . '||' . $shippingState;
-                } elseif ($dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku') {
-                    // For Product Report, we split the order into multiple groups (one per product).
-                    // So we do NOT have a single groupKey for this iteration.
-                    // We set it to NULL to skip the default group initialization.
+                } elseif ($dataset === 'sales_by_discount' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku') {
                     $groupKey = null;
                 } else {
                     $groupKey = $monthKey;
@@ -1995,6 +2051,9 @@ class ReportBuilderService
                         'month_date' => $monthLabel,
                         'year' => $yearLabel,
                         'channel' => $channel,
+                        'customer_full_name' => $cName,
+                        'customer_name' => $cName, // Double-keying for safety
+                        'customer_email' => $cEmail,
                         'image' => $channelImage,
                         'pos_location_name' => $posLocation,
                         'user_name' => $posUserName,
@@ -2092,6 +2151,7 @@ class ReportBuilderService
                 $isProductVariantReport = ($dataset === 'monthly_sales_product_variant');
                 $isVendorReport = ($dataset === 'monthly_sales_vendor');
                 $isSkuReport = ($dataset === 'monthly_sales_sku');
+                $isDiscountReport = ($dataset === 'sales_by_discount');
                 if (!$isProductReport && !empty($reportId)) {
                      // Check columns for product_title as fallback
                      // We need to access $config which isn't easily available here without fetching report again?
@@ -2271,12 +2331,101 @@ class ReportBuilderService
                     // STRICT SAFETY: Do not fall through to standard logic
                     continue;
 
+                } elseif ($isDiscountReport) {
+                    $orderDiscounts = [];
+                    $lineItems = $row['lineItems']['edges'] ?? [];
+                    
+                    // Iterate line items to find discount allocations
+                    if (!empty($lineItems)) {
+                        foreach ($lineItems as $edge) {
+                            $li = $edge['node'] ?? [];
+                            $allocations = $li['discountAllocations'] ?? [];
+                            foreach ($allocations as $allocation) {
+                                $app = $allocation['discountApplication'] ?? [];
+                                $code = '';
+                                
+                                // Extract code or title based on type (union)
+                                if (isset($app['code'])) {
+                                    $code = $app['code'];
+                                } elseif (isset($app['title'])) {
+                                    $code = $app['title'];
+                                }
+                                
+                                if (empty($code) || $code === '-') {
+                                     continue;
+                                }
+                                
+                                $amount = (float)($allocation['allocatedAmountSet']['shopMoney']['amount'] ?? 0);
+                                
+                                if (!isset($orderDiscounts[$code])) {
+                                    $orderDiscounts[$code] = 0.0;
+                                }
+                                $orderDiscounts[$code] += $amount;
+                            }
+                        }
+                    }
+
+                    // Fallback to top-level scalar codes if no allocations found but codes exist
+                    if (empty($orderDiscounts) && !empty($row['discountCodes']) && is_array($row['discountCodes'])) {
+                         $totalDiscountAmount = (float)($row['totalDiscountsSet']['shopMoney']['amount'] ?? 0);
+                         foreach ($row['discountCodes'] as $codeStr) {
+                             if (is_string($codeStr)) {
+                                 $orderDiscounts[$codeStr] = $totalDiscountAmount; 
+                                 $totalDiscountAmount = 0; // Assign full amount to first code
+                             }
+                         }
+                    }
+
+                    foreach ($orderDiscounts as $code => $amount) {
+                        // STRICT CLEANUP: Remove dashes and whitespace
+                        $cleanCode = trim($code, " -");
+                        if ($cleanCode === '') continue;
+                        
+                        // Use original code for display, but normalize for grouping
+                        $groupCodeKey = strtolower(trim($code));
+
+                        if (!isset($groups[$groupCodeKey])) {
+                            $groups[$groupCodeKey] = [
+                                'discount_code' => $code,
+                                'discount_type' => 'fixed_amount',
+                                'month_sort' => 'ALL', // List view
+                                'month_date' => 'All Time',
+                                'year' => '',
+                                'total_orders' => 0,
+                                'gross' => 0.0,
+                                'discounts' => 0.0,
+                                'refunds' => 0.0,
+                                'net' => 0.0,
+                                'taxes' => 0.0,
+                                'shipping' => 0.0,
+                                'sales' => 0.0,
+                                'cogs' => 0.0,
+                                'margin' => 0.0
+                            ];
+                        }
+
+                        $g = &$groups[$groupCodeKey];
+                        $g['total_orders']++;
+                        $g['discounts'] += $amount;
+                        
+                        // Attribute full order sales to this discount code involvement?
+                        // Standard practice: Yes, show total sales generated by orders using this code.
+                        $g['sales'] += $orderTotalSales; 
+                        
+                        // We also attribute other metrics for context if needed
+                        $g['gross'] += $orderGross;
+                        $g['net'] += $orderNet;
+                        $g['refunds'] += $orderRefunds;
+                        $g['taxes'] += $orderTaxes;
+                        $g['shipping'] += $orderShipping;
+                        $g['cogs'] += $orderCogs;
+                        $g['margin'] += $orderMargin;
+                    }
+                    continue;
+
                 } elseif (!$isProductReport) {
                     // Standard Order aggregation (Only if NOT product report)
                     if (!isset($groups[$groupKey])) {
-                         // Fallback just in case initialization logic above was skipped unexpectedly
-                         // But for monthly_sales_product, groupKey is null, so we shouldn't be here.
-                         // This block protects against running standard aggregation on product report.
                          error_log("ReportBuilderService - UNEXPECTED: Standard Aggregation running for key: " . json_encode($groupKey));
                          continue; 
                     }
@@ -2291,6 +2440,20 @@ class ReportBuilderService
                     $g['sales'] += $orderTotalSales;
                     $g['cogs'] += $orderCogs;
                     $g['margin'] += $orderMargin;
+                    
+                    // RE-POPULATE missing names in case initialization skipped them
+                    if (trim($dataset) === 'sales_by_customer') {
+                        if (empty($g['customer_full_name']) || $g['customer_full_name'] === 'Guest Customer' || $g['customer_full_name'] === '-') {
+                             if (!empty($cName) && $cName !== 'Guest Customer' && $cName !== '-') {
+                                 $g['customer_full_name'] = $cName;
+                                 $g['customer_name'] = $cName;
+                             }
+                        }
+                        // Also recover email if it was missing during init but exists now
+                        if ((empty($g['customer_email']) || strpos($g['customer_email'], 'guest_') === 0) && !empty($cEmail) && strpos($cEmail, 'no_email') === false) {
+                            $g['customer_email'] = $cEmail;
+                        }
+                    }
                 }
 
                 // Update Grand Totals (Always Order Level)
@@ -2319,11 +2482,36 @@ class ReportBuilderService
                     'total_cost_of_goods_sold' => ['amount' => number_format($grandTotals['cogs'], 2, '.', ''), 'currencyCode' => $currency],
                     'total_gross_margin' => ['amount' => number_format($grandTotals['margin'], 2, '.', ''), 'currencyCode' => $currency],
                 ]];
-            } elseif ($dataset === 'monthly_sales_channel' || $dataset === 'monthly_sales_pos_location' || $dataset === 'monthly_sales_pos_user' || $dataset === 'monthly_sales_product' || $dataset === 'monthly_sales_product_type' || $dataset === 'monthly_sales_product_variant' || $dataset === 'monthly_sales_shipping' || $dataset === 'monthly_sales_vendor' || $dataset === 'monthly_sales_sku') {
+            } elseif (in_array(trim($dataset), ['sales_by_customer', 'sales_by_discount', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku'])) {
                 // Formatter helper
                 $fmt = function($val) use ($currency) {
                     return ['amount' => number_format($val, 2, '.', ''), 'currencyCode' => $currency];
                 };
+
+                // Deduplicate groups for monthly_sales_channel (Fixes visual duplicates/splits)
+                if ($dataset === 'monthly_sales_channel') {
+                    $merged = [];
+                    foreach ($groups as $key => $g) {
+                        // Normalized Key: Month + Channel (Sanitized)
+                        $cName = ucwords(strtolower(trim(preg_replace('/[^a-zA-Z0-9 ]/', '', $g['channel'] ?? ''))));
+                        if ($dataset === 'monthly_sales_channel' && stripos($cName, 'Online') !== false) {
+                            $cName = 'Online Store'; // Force identity
+                        }
+
+                        $canon = $g['month_sort'] . "\0" . $cName;
+                        
+                        if (isset($merged[$canon])) {
+                             // Duplicate Group found.
+                             // User confirmed "Double Calculation", implying these are redundant duplicates of the same data.
+                             // So we DISCARD the second group instead of summing.
+                             continue;
+                        } else {
+                            $g['channel'] = $cName; // Update name in group
+                            $merged[$canon] = $g;
+                        }
+                    }
+                    $groups = $merged;
+                }
 
                 // Deduplicate groups for monthly_sales_shipping by merging any with same (month, country, state) - fixes duplicate rows from key encoding/whitespace
                 if ($dataset === 'monthly_sales_shipping') {
@@ -2349,8 +2537,12 @@ class ReportBuilderService
                     $groups = $merged;
                 }
 
-                // Sort groups by Month DESC, then Secondary Key ASC
+                // Sort groups: By Month DESC, then Secondary Key ASC
+                // SPECIAL: For Sales by Customer, sort by Total Sales DESC
                 uasort($groups, function($a, $b) use ($dataset) {
+                    if (trim($dataset) === 'sales_by_customer' || trim($dataset) === 'sales_by_discount') {
+                        return (float)($b['sales'] ?? 0) <=> (float)($a['sales'] ?? 0);
+                    }
                     if ($a['month_sort'] === $b['month_sort']) {
                         if ($dataset === 'monthly_sales_pos_location') return strcmp($a['pos_location_name'], $b['pos_location_name']);
                         if ($dataset === 'monthly_sales_pos_user') return strcmp($a['user_name'], $b['user_name']);
@@ -2380,18 +2572,39 @@ class ReportBuilderService
                 $monthTotals = [];
                 $yearTotals = [];
 
+                // FINAL SAFETY FILTER: Remove any groups with empty/invalid keys before processing
+                if ($dataset === 'sales_by_discount') {
+                    foreach ($groups as $k => $validG) {
+                         $dCode = trim($validG['discount_code'] ?? '');
+                         if (empty($dCode) || $dCode === '-' || $validG['total_orders'] <= 0) {
+                              error_log("Filtering invalid discount group: " . json_encode($validG));
+                              unset($groups[$k]);
+                         }
+                    }
+                }
+
                 $currentMonth = null;
 
-                foreach ($groups as $key => $g) {
-                    if ($g['total_orders'] <= 0) continue;
+                foreach ($groups as $key => $groupRow) {
+                    // DEBUG for Sales by Customer
+                    if ($dataset === 'sales_by_customer') {
+                         if (($this->debugCounter ?? 0) < 5) {
+                             error_log("SalesByCustomer Group: Key=$key Orders={$groupRow['total_orders']} Name={$groupRow['customer_full_name']}");
+                             $this->debugCounter = ($this->debugCounter ?? 0) + 1;
+                         }
+                    }
 
-                    if ($currentMonth !== $g['month_sort']) {
+                    if ($groupRow['total_orders'] <= 0) continue;
+
+                    if ($currentMonth !== $groupRow['month_sort']) {
                         // Flush previous month totals
                         if ($currentMonth !== null && isset($monthTotals[$currentMonth])) {
                             $mt = $monthTotals[$currentMonth];
-                            $rows[] = [
-                                'month_date' => 'TOTAL ' . $mt['label'],
-                                'channel' => '',
+                            // For Sales by Customer and Sales by Discount, we do NOT want month summary rows (it's a list)
+                            if ($dataset !== 'sales_by_customer' && $dataset !== 'sales_by_discount') {
+                                $rows[] = [
+                                    'month_date' => 'TOTAL ' . $mt['label'],
+                                    'channel' => '',
                                 'pos_location_name' => '',
                                 'user_name' => '',
                                 'product_title' => '',
@@ -2416,10 +2629,11 @@ class ReportBuilderService
                                 'is_month_total' => true
                             ];
                         }
-                        $currentMonth = $g['month_sort'];
+                    }
+                        $currentMonth = $groupRow['month_sort'];
                         $monthTotals[$currentMonth] = [
-                            'label' => $g['month_date'],
-                            'year' => $g['year'],
+                            'label' => $groupRow['month_date'],
+                            'year' => $groupRow['year'],
                             'orders' => 0, 'quantity' => 0, 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
                             'net' => 0.0, 'taxes' => 0.0, 'shipping' => 0.0, 'sales' => 0.0,
                             'cogs' => 0.0, 'margin' => 0.0
@@ -2428,49 +2642,60 @@ class ReportBuilderService
 
                     // Add row
                     $row = [
-                        'month_date' => $g['month_date'],
-                        'date' => $g['month_date'], // Redundant key for safety
-                        'month' => $g['month_date'], // Redundant key for safety
-                        'total_orders' => $g['total_orders'],
-                        'total_gross_sales' => $fmt($g['gross']),
-                        'total_discounts' => $fmt($g['discounts']),
-                        'total_refunds' => $fmt($g['refunds']),
-                        'total_net_sales' => $fmt($g['net']),
-                        'total_taxes' => $fmt($g['taxes']),
-                        'total_shipping' => $fmt($g['shipping']),
-                        'total_sales' => $fmt($g['sales']),
-                        'total_cost_of_goods_sold' => $fmt($g['cogs']),
-                        'total_gross_margin' => $fmt($g['margin']),
+                        'month_date' => $groupRow['month_date'],
+                        'date' => $groupRow['month_date'], // Redundant key for safety
+                        'month' => $groupRow['month_date'], // Redundant key for safety
+                        'total_orders' => $groupRow['total_orders'],
+                        'total_gross_sales' => $fmt($groupRow['gross']),
+                        'total_discounts' => $fmt($groupRow['discounts']),
+                        'total_refunds' => $fmt($groupRow['refunds']),
+                        'total_net_sales' => $fmt($groupRow['net']),
+                        'total_taxes' => $fmt($groupRow['taxes']),
+                        'total_shipping' => $fmt($groupRow['shipping']),
+                        'total_sales' => $fmt($groupRow['sales']),
+                        'total_cost_of_goods_sold' => $fmt($groupRow['cogs']),
+                        'total_gross_margin' => $fmt($groupRow['margin']),
                         'is_summary' => false
                     ];
                     
                     if ($dataset === 'monthly_sales_pos_location') {
-                        $row['pos_location_name'] = $g['pos_location_name'];
+                        $row['pos_location_name'] = $groupRow['pos_location_name'];
                     } elseif ($dataset === 'monthly_sales_pos_user') {
-                        $row['user_name'] = $g['user_name'];
+                        $row['user_name'] = $groupRow['user_name'];
                     } elseif ($dataset === 'monthly_sales_product') {
-                        $row['product_title'] = $g['product_title'];
-                        $row['total_quantity'] = $g['total_quantity'];
+                        $row['product_title'] = $groupRow['product_title'];
+                        $row['total_quantity'] = $groupRow['total_quantity'];
                     } elseif ($dataset === 'monthly_sales_product_variant') {
-                        $row['product_title'] = $g['product_title'];
-                        $row['variant_title'] = $g['variant_title'];
-                        $row['total_quantity'] = $g['total_quantity'];
+                        $row['product_title'] = $groupRow['product_title'];
+                        $row['variant_title'] = $groupRow['variant_title'];
+                        $row['total_quantity'] = $groupRow['total_quantity'];
                     } elseif ($dataset === 'monthly_sales_shipping') {
-                        $row['order_shipping_country'] = $g['order_shipping_country'] ?? '';
-                        $row['order_shipping_state'] = $g['order_shipping_state'] ?? '';
+                        $row['order_shipping_country'] = $groupRow['order_shipping_country'] ?? '';
+                        $row['order_shipping_state'] = $groupRow['order_shipping_state'] ?? '';
                     } elseif ($dataset === 'monthly_sales_product_type') {
-                        $row['product_type'] = $g['product_type'];
-                        $row['Product type'] = $g['product_type']; // Case variation for safety
-                        $row['total_quantity'] = $g['total_quantity'];
+                        $row['product_type'] = $groupRow['product_type'];
+                        $row['Product type'] = $groupRow['product_type']; // Case variation for safety
+                        $row['total_quantity'] = $groupRow['total_quantity'];
                     } elseif ($dataset === 'monthly_sales_vendor') {
-                        $row['vendor'] = $g['vendor'];
-                        $row['total_quantity'] = $g['total_quantity'];
+                        $row['vendor'] = $groupRow['vendor'];
+                        $row['total_quantity'] = $groupRow['total_quantity'];
                     } elseif ($dataset === 'monthly_sales_sku') {
-                        $row['sku'] = $g['sku'];
-                        $row['product_title'] = $g['product_title'];
-                        $row['total_quantity'] = $g['total_quantity'];
+                        $row['sku'] = $groupRow['sku'];
+                        $row['product_title'] = $groupRow['product_title'];
+                        $row['total_quantity'] = $groupRow['total_quantity'];
+                    } elseif (trim($dataset) === 'sales_by_customer') {
+                        $row['customer_full_name'] = $groupRow['customer_full_name'] ?? $groupRow['customer_name'] ?? 'Guest Customer';
+                        $row['customer_name'] = $row['customer_full_name']; // Ensure both keys exist
+                        $row['customer_email'] = $groupRow['customer_email'] ?? '';
+                    } elseif ($dataset === 'sales_by_discount') {
+                        $row['discount_code'] = $groupRow['discount_code'];
+                        $row['discount_type'] = $groupRow['discount_type'];
+                        // Ensure total_sales is explicit
+                        $row['total_sales'] = $fmt($groupRow['sales']);
+                        $row['total_orders'] = $groupRow['total_orders'];
+                        $row['total_discounts'] = $fmt($groupRow['discounts']);
                     } else {
-                        $row['channel'] = $g['channel'];
+                        $row['channel'] = $groupRow['channel'];
                     }
                     
                     $row['is_summary'] = false;
@@ -2484,20 +2709,22 @@ class ReportBuilderService
 
                     // Accumulate Month Total
                     $mt = &$monthTotals[$currentMonth];
-                    $mt['orders'] += $g['total_orders'];
-                    $mt['quantity'] += ($g['total_quantity'] ?? 0);
-                    $mt['gross'] += $g['gross'];
-                    $mt['discounts'] += $g['discounts'];
-                    $mt['refunds'] += $g['refunds'];
-                    $mt['net'] += $g['net'];
-                    $mt['taxes'] += $g['taxes'];
-                    $mt['shipping'] += $g['shipping'];
-                    $mt['sales'] += $g['sales'];
-                    $mt['cogs'] += $g['cogs'];
-                    $mt['margin'] += $g['margin'];
+                    $mt['orders'] += $groupRow['total_orders'];
+                    $mt['quantity'] += ($groupRow['total_quantity'] ?? 0);
+                    $mt['gross'] += $groupRow['gross'];
+                    $mt['discounts'] += $groupRow['discounts'];
+                    $mt['refunds'] += $groupRow['refunds'];
+                    $mt['net'] += $groupRow['net'];
+                    $mt['taxes'] += $groupRow['taxes'];
+                    $mt['shipping'] += $groupRow['shipping'];
+                    $mt['sales'] += $groupRow['sales'];
+                    $mt['cogs'] += $groupRow['cogs'];
+                    $mt['margin'] += $groupRow['margin'];
                     
                     // Accumulate Year Total
-                    $year = $g['year'];
+                    $year = $groupRow['year'];
+                    if (empty($year)) $year = 'ALL';
+                    
                     if (!isset($yearTotals[$year])) {
                          $yearTotals[$year] = [
                             'orders' => 0, 'gross' => 0.0, 'discounts' => 0.0, 'refunds' => 0.0,
@@ -2506,24 +2733,26 @@ class ReportBuilderService
                         ];
                     }
                     $yt = &$yearTotals[$year];
-                    $yt['orders'] += $g['total_orders'];
-                    $yt['gross'] += $g['gross'];
-                    $yt['discounts'] += $g['discounts'];
-                    $yt['refunds'] += $g['refunds'];
-                    $yt['net'] += $g['net'];
-                    $yt['taxes'] += $g['taxes'];
-                    $yt['shipping'] += $g['shipping'];
-                    $yt['sales'] += $g['sales'];
-                    $yt['cogs'] += $g['cogs'];
-                    $yt['margin'] += $g['margin'];
+                    $yt['orders'] += $groupRow['total_orders'];
+                    $yt['gross'] += $groupRow['gross'];
+                    $yt['discounts'] += $groupRow['discounts'];
+                    $yt['refunds'] += $groupRow['refunds'];
+                    $yt['net'] += $groupRow['net'];
+                    $yt['taxes'] += $groupRow['taxes'];
+                    $yt['shipping'] += $groupRow['shipping'];
+                    $yt['sales'] += $groupRow['sales'];
+                    $yt['cogs'] += $groupRow['cogs'];
+                    $yt['margin'] += $groupRow['margin'];
                 }
 
                 // Cleanup last month
                 if ($currentMonth !== null && isset($monthTotals[$currentMonth])) {
                     $mt = $monthTotals[$currentMonth];
-                    $rows[] = [
-                        'month_date' => 'TOTAL ' . $mt['label'],
-                        'channel' => '',
+                    // Skip month total for sales_by_customer and sales_by_discount
+                    if (trim($dataset) !== 'sales_by_customer' && trim($dataset) !== 'sales_by_discount') {
+                        $rows[] = [
+                            'month_date' => 'TOTAL ' . $mt['label'],
+                            'channel' => '',
                         'pos_location_name' => '',
                         'user_name' => '',
                         'product_title' => '',
@@ -2546,38 +2775,97 @@ class ReportBuilderService
                         'is_month_total' => true
                     ];
                 }
+            }
 
-                // Append Year Totals
-                krsort($yearTotals);
-                foreach ($yearTotals as $year => $yt) {
-                     $rows[] = [
-                        'month_date' => 'TOTAL ' . $year,
-                        'channel' => '',
-                        'pos_location_name' => '',
-                        'user_name' => '',
-                        'product_title' => '',
-                        'variant_title' => '',
-                        'product_type' => '',
-                        'vendor' => '',
-                        'sku' => '',
-                        'order_shipping_country' => '',
-                        'order_shipping_state' => '',
-                        'total_orders' => $yt['orders'],
-                        'total_gross_sales' => $fmt($yt['gross']),
-                        'total_discounts' => $fmt($yt['discounts']),
-                        'total_refunds' => $fmt($yt['refunds']),
-                        'total_net_sales' => $fmt($yt['net']),
-                        'total_taxes' => $fmt($yt['taxes']),
-                        'total_shipping' => $fmt($yt['shipping']),
-                        'total_sales' => $fmt($yt['sales']),
-                        'total_cost_of_goods_sold' => $fmt($yt['cogs']),
-                        'total_gross_margin' => $fmt($yt['margin']),
-                        'is_summary' => true,
-                        'is_year_total' => true
-                    ];
+                // Append Year Totals (Skip for Sales by Customer and Sales by Discount)
+                if (trim($dataset) !== 'sales_by_customer' && trim($dataset) !== 'sales_by_discount') {
+                    krsort($yearTotals);
+                    foreach ($yearTotals as $year => $yt) {
+                         $rows[] = [
+                            'month_date' => 'TOTAL ' . $year,
+                            'channel' => '',
+                            'pos_location_name' => '',
+                            'user_name' => '',
+                            'product_title' => '',
+                            'variant_title' => '',
+                            'product_type' => '',
+                            'vendor' => '',
+                            'sku' => '',
+                            'order_shipping_country' => '',
+                            'order_shipping_state' => '',
+                            'total_orders' => $yt['orders'],
+                            'total_gross_sales' => $fmt($yt['gross']),
+                            'total_discounts' => $fmt($yt['discounts']),
+                            'total_refunds' => $fmt($yt['refunds']),
+                            'total_net_sales' => $fmt($yt['net']),
+                            'total_taxes' => $fmt($yt['taxes']),
+                            'total_shipping' => $fmt($yt['shipping']),
+                            'total_sales' => $fmt($yt['sales']),
+                            'total_cost_of_goods_sold' => $fmt($yt['cogs']),
+                            'total_gross_margin' => $fmt($yt['margin']),
+                            'is_summary' => true,
+                            'is_year_total' => true
+                        ];
+                    }
                 }
-                
+
                 $data = $rows;
+                
+                // STRICT CLEANUP for Sales by Customer and Sales by Discount
+                if (in_array(trim($dataset), ['sales_by_customer', 'sales_by_discount'])) {
+                    $newRows = [];
+                    foreach ($data as $r) {
+                        $ords = (float)($r['total_orders'] ?? 0);
+                        $isSummary = $r['is_summary'] ?? false;
+                        
+                        // FIX: If it has orders, we MUST show it.
+                        if (!$isSummary && $ords > 0.001) {
+                             if (trim($dataset) === 'sales_by_customer') {
+                                 $cName = trim((string)($r['customer_full_name'] ?? ''));
+                                 if ($cName === '' || $cName === '-' || $cName === ' - ') {
+                                     $r['customer_full_name'] = 'Unknown Customer / Guest';
+                                     $r['customer_name'] = 'Unknown Customer / Guest';
+                                 }
+                             } elseif (trim($dataset) === 'sales_by_discount') {
+                                 $dCode = trim((string)($r['discount_code'] ?? ''));
+                                 // We already filtered empty/dash in groups, but being paranoid here doesn't hurt.
+                                 if ($dCode === '' || $dCode === '-' || $dCode === ' - ') continue;
+                             }
+                             $newRows[] = $r;
+                        }
+                    }
+                    
+                    // Add Grand Total Row at the bottom
+                    if ($grandTotals['orders'] > 0) {
+                         $totalRow = [
+                             'total_orders' => $grandTotals['orders'],
+                             'total_gross_sales' => $fmt($grandTotals['gross']),
+                             'total_discounts' => $fmt($grandTotals['discounts']),
+                             'total_refunds' => $fmt($grandTotals['refunds']),
+                             'total_net_sales' => $fmt($grandTotals['net']),
+                             'total_taxes' => $fmt($grandTotals['taxes']),
+                             'total_shipping' => $fmt($grandTotals['shipping']),
+                             'total_sales' => $fmt($grandTotals['sales']),
+                             'total_cost_of_goods_sold' => $fmt($grandTotals['cogs']),
+                             'total_gross_margin' => $fmt($grandTotals['margin']),
+                             'is_summary' => true,
+                             'is_grand_total' => true
+                         ];
+
+                         if (trim($dataset) === 'sales_by_customer') {
+                             $totalRow['customer_full_name'] = 'TOTAL';
+                             $totalRow['customer_email'] = '';
+                         } else {
+                             $totalRow['discount_code'] = 'TOTAL';
+                             $totalRow['discount_type'] = '';
+                         }
+                         
+                         $newRows[] = $totalRow;
+                    }
+                    
+                    $data = $newRows;
+                    $rows = $newRows; 
+                }
                 
             } elseif ($dataset === 'monthly_sales' || $dataset === 'monthly_sales_summary') {
                 // Monthly Sales formatting
@@ -3366,7 +3654,7 @@ class ReportBuilderService
         }
 
         // For Standard Reports, add the Aggregated Parents to Data
-        if (!$isChildRowReport && !in_array($dataset, ['sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku', 'monthly_cohorts', 'aov_time', 'customers_by_country', 'products_by_type', 'products_vendor', 'inventory_by_product', 'inventory_by_vendor'])) {
+        if (!$isChildRowReport && !in_array($dataset, ['sales_by_discount', 'sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku', 'monthly_cohorts', 'aov_time', 'customers_by_country', 'products_by_type', 'products_vendor', 'inventory_by_product', 'inventory_by_vendor'])) {
             error_log("ReportBuilderService::processBulkData - Merging " . count($parentsMap) . " parents into final data");
             foreach ($parentsMap as $p) {
                 // Apply Filters to Parents (e.g. Order Date)
@@ -3550,6 +3838,11 @@ class ReportBuilderService
                  } else {
                      $nodeValue = '__NO_MATCH__';
                  }
+            } elseif ($field === 'customer_full_name') {
+                 $nodeValue = trim(($node['customer']['firstName'] ?? '') . ' ' . ($node['customer']['lastName'] ?? ''));
+                 if ($nodeValue === '') $nodeValue = $node['customer']['displayName'] ?? '';
+            } elseif ($field === 'customer_email') {
+                 $nodeValue = $node['customer']['email'] ?? $node['email'] ?? '';
             } elseif (isset($node[$field])) {
                 $nodeValue = $node[$field];
             } else {
@@ -3648,7 +3941,7 @@ class ReportBuilderService
              }
          }
 
-        return "{ orders(first: 250, sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } shippingAddress { country province } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType vendor } inventoryItem { unitCost { amount } } } } } } } } } }";
+        return "{ orders(first: 250, sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name email createdAt displayFinancialStatus displayFulfillmentStatus app { name } discountCodes customer { firstName lastName email displayName } shippingAddress { country province firstName lastName } billingAddress { country province firstName lastName } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType vendor } inventoryItem { unitCost { amount } } } discountAllocations { allocatedAmountSet { shopMoney { amount } } discountApplication { ... on DiscountCodeApplication { code } ... on ManualDiscountApplication { title } ... on ScriptDiscountApplication { title } } } } } } } } } }";
     }
 
     private function buildAovTimeQuery($filters, $columns, $groupBy, $aggregations)

@@ -816,6 +816,28 @@ class ReportController extends Controller
              $report = $reportModel->find($id);
         }
 
+        // AUTO-PATCH: Fix Sales by Customer
+        if (($report['category'] === 'sales_by_customer' || stripos($report['name'], 'Sales by customer') !== false) && ($config['dataset'] !== 'sales_by_customer')) {
+             error_log("ReportController::run - Auto-patching Sales by Customer report {$id}");
+             $config['dataset'] = 'sales_by_customer';
+             $config['columns'] = [
+                 'customer_name',
+                 'customer_email',
+                 'total_orders', 
+                 'total_gross_sales', 
+                 'total_discounts', 
+                 'total_refunds', 
+                 'total_net_sales', 
+                 'total_taxes', 
+                 'total_shipping',
+                 'total_sales', 
+                 'total_cost_of_goods_sold', 
+                 'total_gross_margin'
+             ];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
+        }
+
         // AUTO-PATCH: Fix Pending Fulfillments report
         if (($report['category'] === 'pending_fulfillments_var' || $report['name'] === 'Pending fulfillments') && ($config['dataset'] !== 'pending_fulfillment_by_variant')) {
              error_log("ReportController::run - Auto-patching Pending Fulfillments report {$id}");
@@ -833,18 +855,26 @@ class ReportController extends Controller
              $report['name'] = 'Items pending fulfillment';
         }
 
-        // AUTO-PATCH: Fix Line Item Details report to remove image column and ensure correct columns
-        if (($report['category'] === 'line_items' || $report['name'] === 'Line Item Details') && $config['dataset'] === 'line_items') {
+        // AUTO-PATCH: Fix Line Item Details report
+        if ($report['category'] === 'line_items' || $report['name'] === 'Line Item Details') {
              $expectedColumns = ['order_date', 'order_name', 'customer_name', 'product_name', 'variant_name', 'quantity', 'total_gross_sales', 'total_discounts', 'total_refunds', 'total_net_sales'];
-             $currentColumns = $config['columns'] ?? [];
              
-             // Check if columns need updating (has 'image' or doesn't match expected)
-             if (in_array('image', $currentColumns) || $currentColumns !== $expectedColumns) {
-                  error_log("ReportController::run - Auto-patching Line Item Details report {$id} to remove image column");
+             if (($config['dataset'] ?? '') !== 'line_items' || ($config['columns'] ?? []) !== $expectedColumns) {
+                  error_log("ReportController::run - Auto-patching Line Item Details report {$id}");
+                  $config['dataset'] = 'line_items';
                   $config['columns'] = $expectedColumns;
                   $reportModel->update($id, ['query_config' => json_encode($config)]);
                   $report = $reportModel->find($id);
              }
+        }
+
+        // AUTO-PATCH: Fix Pending Disputes report
+        if (($report['category'] === 'pending_disputes' || $report['name'] === 'Pending disputes') && ($config['dataset'] ?? '') !== 'pending_disputes') {
+             error_log("ReportController::run - Auto-patching Pending Disputes report {$id}");
+             $config['dataset'] = 'pending_disputes';
+             $config['columns'] = ['initiated_at', 'id', 'status', 'type', 'reason', 'evidence_due_by', 'evidence_sent_on', 'order_name', 'order_date', 'email', 'customer_name', 'total_amount'];
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+             $report = $reportModel->find($id);
         }
 
         try {
@@ -880,12 +910,98 @@ class ReportController extends Controller
                  $report['query_config'] = json_encode($config);
             }
 
+            // FINAL FORCE OVERRIDE: Sales by Customer
+             if (stripos(trim($report['name'] ?? ''), 'Sales by customer') !== false) {
+                  error_log("ReportController::run - FINAL FORCE: Setting Sales by Customer to use sales_by_customer dataset");
+                  $config['dataset'] = 'sales_by_customer';
+                  $config['columns'] = [
+                      'customer_full_name',
+                      'customer_email',
+                      'total_orders', 
+                      'total_gross_sales', 
+                      'total_discounts', 
+                      'total_refunds', 
+                      'total_net_sales', 
+                      'total_taxes', 
+                      'total_shipping',
+                      'total_sales', 
+                      'total_cost_of_goods_sold', 
+                      'total_gross_margin'
+                  ];
+                  $reportModel->update($id, ['query_config' => json_encode($config)]);
+                  $report['query_config'] = json_encode($config);
+             }
+
             // FINAL FORCE OVERRIDE: If report name is "Variants without cost", use inventory_by_sku dataset and filter for missing costs
             if ($report['name'] === 'Variants without cost') {
                  error_log("ReportController::run - FINAL FORCE: Setting Variants without cost to use inventory_by_sku dataset");
                  $config['dataset'] = 'inventory_by_sku';
                  $config['columns'] = ['image', 'product_title', 'variant_title', 'price'];
                  $config['filters'] = [['field' => 'cost', 'operator' => '=', 'value' => '-']];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+
+            // FINAL FORCE OVERRIDE: Ensure "Inventory by product" uses correct dataset
+            if ($report['name'] === 'Inventory by product') {
+                 error_log("ReportController::run - FINAL FORCE: Setting Inventory by product to use inventory_by_product dataset");
+                 $config['dataset'] = 'inventory_by_product';
+                 $config['columns'] = ['product_title', 'image', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+
+            // FINAL FORCE OVERRIDE: Ensure "Inventory by product type" uses correct dataset
+            if ($report['name'] === 'Inventory by product type') {
+                 error_log("ReportController::run - FINAL FORCE: Setting Inventory by product type to use products_by_type dataset");
+                 $config['dataset'] = 'products_by_type';
+                 $config['columns'] = ['product_type', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+
+            // FINAL FORCE OVERRIDE: Ensure "Total inventory summary" uses correct dataset
+            if ($report['name'] === 'Total inventory summary') {
+                 error_log("ReportController::run - FINAL FORCE: Setting Total inventory summary to use total_inventory_summary dataset");
+                 $config['dataset'] = 'total_inventory_summary';
+                 $config['columns'] = ['total_products', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+
+            // FINAL FORCE OVERRIDE: Ensure "All-time Sales" uses sales_summary dataset
+            if ($report['name'] === 'All-time Sales') {
+                 error_log("ReportController::run - FINAL FORCE: Setting All-time Sales to use sales_summary dataset");
+                 $config['dataset'] = 'sales_summary';
+                 $config['columns'] = ['total_orders', 'total_gross_sales', 'total_discounts', 'total_refunds', 'total_net_sales', 'total_taxes', 'total_shipping', 'total_sales', 'total_cost_of_goods_sold', 'total_gross_margin'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+
+            // FINAL FORCE OVERRIDE: Ensure "Payout summary" uses payouts dataset
+            if ($report['name'] === 'Payout summary') {
+                 error_log("ReportController::run - FINAL FORCE: Setting Payout summary to use payouts dataset");
+                 $config['dataset'] = 'payouts';
+                 $config['columns'] = ['date', 'id', 'currency', 'status', 'total_gross', 'total_fee', 'total_net'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+
+            // FINAL FORCE OVERRIDE: Ensure "Monthly disputes" uses monthly_disputes dataset
+            if ($report['name'] === 'Monthly disputes') {
+                 error_log("ReportController::run - FINAL FORCE: Setting Monthly disputes to use monthly_disputes dataset");
+                 $config['dataset'] = 'monthly_disputes';
+                 $config['columns'] = ['month_initiated_at', 'status', 'type', 'reason', 'total_disputes', 'total_amount'];
+                 $reportModel->update($id, ['query_config' => json_encode($config)]);
+                 $report['query_config'] = json_encode($config);
+            }
+            
+
+            // FINAL FORCE OVERRIDE: Ensure "Sales by discount code" uses sales_by_discount dataset
+            if (stripos($report['name']??'', 'Sales by discount') !== false) {
+                 error_log("ReportController::run - FINAL FORCE: Setting Sales by discount to use sales_by_discount dataset");
+                 $config['dataset'] = 'sales_by_discount';
+                 $config['columns'] = ['discount_code', 'discount_type', 'total_orders', 'total_discounts', 'total_sales'];
                  $reportModel->update($id, ['query_config' => json_encode($config)]);
                  $report['query_config'] = json_encode($config);
             }
@@ -1064,6 +1180,60 @@ class ReportController extends Controller
             $columns = $config['columns'];
         }
 
+        // FORCE OVERRIDE: Inventory by product
+        if ($report['name'] === 'Inventory by product') {
+             $config['dataset'] = 'inventory_by_product';
+             $columns = ['product_title', 'image', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+        }
+
+        // FORCE OVERRIDE: Inventory by product type
+        if ($report['name'] === 'Inventory by product type') {
+             $config['dataset'] = 'products_by_type';
+             $columns = ['product_type', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+        }
+
+        // FORCE OVERRIDE: Total inventory summary
+        if ($report['name'] === 'Total inventory summary') {
+             $config['dataset'] = 'total_inventory_summary';
+             $columns = ['total_products', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+        }
+
+        // FORCE OVERRIDE: All-time Sales
+        if ($report['name'] === 'All-time Sales') {
+             $config['dataset'] = 'sales_summary';
+             $columns = ['total_orders', 'total_gross_sales', 'total_discounts', 'total_refunds', 'total_net_sales', 'total_taxes', 'total_shipping', 'total_sales', 'total_cost_of_goods_sold', 'total_gross_margin'];
+        }
+
+        // FORCE OVERRIDE: Payout summary
+        if ($report['name'] === 'Payout summary') {
+             $config['dataset'] = 'payouts';
+             $columns = ['date', 'id', 'currency', 'status', 'total_gross', 'total_fee', 'total_net'];
+        }
+
+        // FORCE OVERRIDE: Monthly disputes
+        if ($report['name'] === 'Monthly disputes') {
+             $config['dataset'] = 'monthly_disputes';
+             $columns = ['month_initiated_at', 'status', 'type', 'reason', 'total_disputes', 'total_amount'];
+        }
+
+        // FORCE OVERRIDE: Total products by type
+        if ($report['name'] === 'Total products by type') {
+             $config['dataset'] = 'products_by_type';
+             $columns = ['product_type', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
+        }
+
+        // FORCE OVERRIDE: Total products by vendor
+        if ($report['name'] === 'Total products by vendor') {
+             $config['dataset'] = 'products_vendor';
+             $columns = ['vendor', 'total_products'];
+        }
+
+        // FORCE OVERRIDE: Total customers per country
+        if ($report['name'] === 'Total customers per country') {
+             $config['dataset'] = 'customers_by_country';
+             $columns = ['country', 'total_customers'];
+        }
+
         // FALLBACK FIX: For Inventory by SKU, force columns if they look wrong
         if (($report['category'] === 'inventory_sku' || $report['name'] === 'Inventory by SKU') && !in_array('sku', $columns)) {
              $columns = ['product_title', 'sku', 'total_variants', 'total_quantity', 'total_inventory_value', 'total_inventory_cost'];
@@ -1074,19 +1244,86 @@ class ReportController extends Controller
              $columns = ['product_title', 'variant_title', 'price', 'cost', 'unit_margin', 'unit_margin_percent'];
         }
 
+        if (stripos(trim($report['name'] ?? ''), 'Sales by customer') !== false) {
+             $columns = [
+                 'customer_full_name',
+                 'customer_email',
+                 'total_orders', 
+                 'total_gross_sales', 
+                 'total_discounts', 
+                 'total_refunds', 
+                 'total_net_sales', 
+                 'total_taxes', 
+                 'total_shipping',
+                 'total_sales', 
+                 'total_cost_of_goods_sold', 
+                 'total_gross_margin'
+             ];
+             
+             // FINAL GATE: Strictly remove any rows that have hyphens or 0 orders
+             $raw = json_decode($result['result_data'] ?? '[]', true) ?? [];
+             $clean = [];
+             $seenRows = [];
+             
+             // DEBUG LOG
+             error_log("ReportController SalesByCustomer Filter - Raw count: " . count($raw));
+             
+             foreach ($raw as $index => $row) {
+                 $name = trim((string)($row['customer_full_name'] ?? $row['customer_name'] ?? ''));
+                 $email = trim((string)($row['customer_email'] ?? ''));
+                 $ords = (float)($row['total_orders'] ?? 0);
+                 $isSummary = ($name === 'TOTAL' || stripos($name, 'TOTAL ') !== false || ($row['is_summary'] ?? false));
+                 
+                 // Deduplicate rows based on name + email + orders
+                 $idKey = md5($name . '|' . $email . '|' . $ords . '|' . ($isSummary ? '1' : '0'));
+                 if (isset($seenRows[$idKey])) {
+                     error_log("  Row #$index SKIPPED (Duplicate): Name='$name' Email='$email' Ords=$ords");
+                     continue;
+                 }
+                 $seenRows[$idKey] = true;
+
+                 // Relaxed IsFake check: Allow anything if orders > 0
+                 $isFake = ($name === '' || $name === '-' || $name === ' - ');
+                 
+                 $keep = false;
+                 if ($isSummary) {
+                     $row['customer_full_name'] = $name;
+                     $clean[] = $row;
+                     $keep = true;
+                 } elseif (!$isFake && ($ords > 0.001 || !empty($email))) {
+                     $clean[] = $row;
+                     $keep = true;
+                 } elseif ($ords > 0.001) {
+                     // Even if name is "fake", if orders exist, keep it (and fix name if needed)
+                     if ($name === '' || $name === '-') $row['customer_full_name'] = 'Unknown Customer';
+                     $clean[] = $row;
+                     $keep = true;
+                 }
+                 
+                 if (!$keep) {
+                      error_log("  Row #$index DROPPED: Name='$name' Email='$email' Ords=$ords IsSummary=" . ($isSummary?'Y':'N') . " IsFake=" . ($isFake?'Y':'N'));
+                 } else {
+                      error_log("  Row #$index KEPT: Name='$name' Ords=$ords");
+                 }
+             }
+             $data = $clean;
+        }
+
         if (!$result) {
             $this->json(['data' => [], 'total' => 0, 'columns' => $columns]);
         }
 
-        $data = json_decode($result['result_data'], true) ?? [];
+        if (!isset($data)) {
+            $data = json_decode($result['result_data'] ?? '[]', true) ?? [];
+        }
         
         // FINAL SAFETY FILTER: For Pending Fulfillments, strictly remove 0 values at read time
-        if ($report['category'] === 'pending_fulfillments_var' || $report['name'] === 'Pending fulfillments') {
+        if (($report['category'] ?? '') === 'pending_fulfillments_var' || ($report['name'] ?? '') === 'Pending fulfillments') {
              $filtered = [];
              foreach ($data as $row) {
                  $val = (int)($row['quantity_pending_fulfillment'] ?? 0);
                  if ($val > 0) {
-                     $filtered[] = $row;
+                      $filtered[] = $row;
                  }
              }
              $data = $filtered;
@@ -1164,9 +1401,9 @@ class ReportController extends Controller
         // 1. Orders / Sales Reports (Dataset: orders)
         $orderReports = [
             'orders', 'monthly_cohorts', 'monthly_sales', 
-            'monthly_sales_channel', 'sales_pos_location', 'sales_pos_user', 'sales_product', 'sales_type', 
-            'sales_variant', 'sales_shipping', 'sales_sku', 'sales_vendor', 'refunds', 'sales_channel', 
-            'sales_customer', 'sales_discount', 'sales_by_product', 'sales_by_type', 'sales_by_variant', 
+            'sales_pos_location', 'sales_pos_user', 'sales_product', 'sales_type', 
+            'sales_variant', 'sales_shipping', 'sales_sku', 'sales_vendor', 'refunds', 
+            'sales_customer', 'sales_by_product', 'sales_by_type', 'sales_by_variant', 
             'sales_ref_site', 'sales_by_sku', 'sales_by_vendor', 'sales_over_time', 'sales_gift_cards', 
             'sales_time_channel', 'sales_time_pos', 'sales_time_user', 'sales_time_product', 'sales_time_type', 
             'sales_time_variant', 'sales_time_ref', 'sales_time_sku', 'sales_time_utm_medium', 'sales_time_utm_source', 
@@ -1189,6 +1426,16 @@ class ReportController extends Controller
                 ]
             ];
         }
+
+        // Specific Sales by discount code report
+        $reports['sales_by_discount'] = [
+            'name' => 'Sales by discount code',
+            'description' => 'Breakdown of sales by discount code',
+            'config' => [
+                'dataset' => 'sales_by_discount',
+                'columns' => ['discount_code', 'discount_type', 'total_orders', 'total_discounts', 'total_sales']
+            ]
+        ];
 
         // Specific monthly cohorts report
         $reports['monthly_cohorts'] = [
@@ -1222,15 +1469,50 @@ class ReportController extends Controller
             ]
         ];
 
+        // FORCE OVERRIDE: Ensure "Sales by discount code" has correct columns
+        error_log("DEBUG: Checking Discount Override. Name: " . ($report['name']??'') . " Dataset: " . ($config['dataset']??''));
+        if (stripos(trim($report['name']??''), 'Sales by discount') !== false || ($report['category']??'') === 'sales_by_discount' || ($config['dataset']??'') === 'sales_by_discount') {
+             error_log("DEBUG: APPLYING DISCOUNT OVERRIDE");
+             $config['dataset'] = 'sales_by_discount';
+             $columns = ['discount_code', 'discount_type', 'total_orders', 'total_discounts', 'total_sales'];
+             $config['columns'] = $columns;
+             // Update database to persist the fix
+             $reportModel->update($id, ['query_config' => json_encode($config)]);
+        }
+
+
+
         // Monthly sales by channel report
         $reports['monthly_sales_channel'] = [
             'name' => 'Monthly sales by channel',
-            'description' => 'Monthly sales breakdown by channel',
+            'description' => 'Breakdown of sales by month and channel (e.g. Online Store, POS)',
             'config' => [
                 'dataset' => 'monthly_sales_channel',
                 'columns' => [
-                    'month_date', 
+                    'month_date',
                     'channel',
+                    'total_orders',
+                    'total_gross_sales',
+                    'total_discounts',
+                    'total_refunds',
+                    'total_net_sales',
+                    'total_taxes',
+                    'total_shipping',
+                    'total_sales',
+                    'total_cost_of_goods_sold',
+                    'total_gross_margin'
+                ]
+            ]
+        ];
+
+        // Sales by channel report
+        $reports['sales_channel'] = [
+            'name' => 'Sales by channel',
+            'description' => 'Sales breakdown by channel',
+            'config' => [
+                'dataset' => 'sales_by_channel',
+                'columns' => [
+                    'channel', 
                     'total_orders', 
                     'total_gross_sales', 
                     'total_discounts', 
@@ -1255,6 +1537,29 @@ class ReportController extends Controller
                     'month_date',
                     'order_shipping_country',
                     'order_shipping_state',
+                    'total_orders',
+                    'total_gross_sales',
+                    'total_discounts',
+                    'total_refunds',
+                    'total_net_sales',
+                    'total_taxes',
+                    'total_shipping',
+                    'total_sales',
+                    'total_cost_of_goods_sold',
+                    'total_gross_margin'
+                ]
+            ]
+        ];
+
+        // Sales by customer
+        $reports['sales_by_customer'] = [
+            'name' => 'Sales by customer',
+            'description' => 'Detailed sales report by customer',
+            'config' => [
+                'dataset' => 'sales_by_customer',
+                'columns' => [
+                    'customer_full_name',
+                    'customer_email',
                     'total_orders',
                     'total_gross_sales',
                     'total_discounts',
@@ -1332,6 +1637,22 @@ class ReportController extends Controller
                     'total_sales', 
                     'total_cost_of_goods_sold', 
                     'total_gross_margin'
+                ]
+            ]
+        ];
+
+        // Sales by discount code report
+        $reports['sales_by_discount'] = [
+            'name' => 'Sales by discount code',
+            'description' => 'Sales breakdown by discount code',
+            'config' => [
+                'dataset' => 'sales_by_discount',
+                'columns' => [
+                    'discount_code',
+                    'discount_type',
+                    'total_orders',
+                    'total_discounts',
+                    'total_sales'
                 ]
             ]
         ];
