@@ -1,3 +1,0 @@
-Dataset: sales_by_product
-Query:
-{ orders(sortKey: CREATED_AT, reverse: true, query: "status:any") { edges { node { id name createdAt email displayFinancialStatus displayFulfillmentStatus subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } totalTaxSet { shopMoney { amount } } totalPriceSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id title quantity sku name originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id title image { url } inventoryItem { unitCost { amount } } product { title productType featuredImage { url } } } } } } } } } }
