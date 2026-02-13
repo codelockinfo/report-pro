@@ -111,15 +111,12 @@ class ReportBuilderService
         $searchQuery = trim(preg_replace('/\s+AND\s+/', ' AND ', $searchQuery));
         $searchQuery = trim($searchQuery, " AND");
 
-        $args = "first: 250";
-        // Default to status:any to see ALL orders
         $queryStr = "status:any";
-        
         if (!empty($searchQuery)) {
             $queryStr .= " AND " . $searchQuery;
         }
         
-        $args .= ", query: \"" . addslashes($queryStr) . "\"";
+        $args = "query: \"" . addslashes($queryStr) . "\"";
 
         // Bulk Operations require pagination arguments on connections (e.g. first: 250)
         $query = "query { orders($args) { edges { node { ";
@@ -619,8 +616,8 @@ class ReportBuilderService
             // ...
         }
         
-        // FIX: Force Strip Date Filters here for Total Inventory
-        if (in_array(($config['dataset']??''), ['total_inventory_summary', 'sales_by_product', 'pending_fulfillment_by_variant'])) {
+        // FIX: Force Strip Date Filters here for Total Inventory and Product Sales
+        if (in_array(($config['dataset']??''), ['total_inventory_summary', 'sales_by_product', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'pending_fulfillment_by_variant'])) {
              $config['filters'] = array_values(array_filter($config['filters'] ?? [], function($f) {
                  return !in_array($f['field'], ['created_at', 'updated_at']);
              }));
@@ -629,6 +626,20 @@ class ReportBuilderService
 
         $this->activeFilters = $config['filters'] ?? [];
         error_log("ReportBuilderService::executeReport - Active Filters Set: " . json_encode($this->activeFilters));
+        
+        // CHECK SCOPES
+        try {
+            $scopes = $this->shopifyService->getGrantedAccessScopes();
+            $scopeStr = is_array($scopes) ? implode(',', $scopes) : 'unknown';
+            file_put_contents('debug_sales.log', "ReportBuilderService::executeReport - Granted Scopes: $scopeStr\n", FILE_APPEND);
+            
+            if (is_array($scopes) && !in_array('read_all_orders', $scopes)) {
+                 file_put_contents('debug_sales.log', "ReportBuilderService::executeReport - WARNING: 'read_all_orders' scope is MISSING. Order history will be limited to 60 days.\n", FILE_APPEND);
+            }
+        } catch (\Throwable $e) {
+            file_put_contents('debug_sales.log', "ReportBuilderService::executeReport - Failed to check scopes: " . $e->getMessage() . "\n", FILE_APPEND);
+        }
+
         error_log("ReportBuilderService::executeReport - Dataset: " . ($config['dataset'] ?? 'NONE'));
 
         if (in_array($config['dataset'] ?? '', ['monthly_sales_product', 'sales_by_product', 'monthly_sales_product_type', 'monthly_sales_product_variant'])) {
@@ -788,12 +799,16 @@ class ReportBuilderService
 
         if ($currentStatus === 'COMPLETED' && isset($node['url'])) {
             // Download and process the file
-            error_log("ReportBuilderService::processBulkOperationResult - COMPLETED, downloading: {$node['url']}");
-            $fileData = $this->shopifyService->downloadBulkOperationFile($node['url']);
+            error_log("ReportBuilderService::processBulkOperationResult - COMPLETED, downloading to temp file: {$node['url']}");
+            $tempFile = $this->shopifyService->downloadBulkOperationFile($node['url']);
             
-            if ($fileData) {
-                error_log("ReportBuilderService::processBulkOperationResult - Data downloaded, length: " . strlen($fileData));
-                $this->processBulkData($operation, $fileData, $reportId, $operation['operation_type']);
+            if ($tempFile && file_exists($tempFile)) {
+                error_log("ReportBuilderService::processBulkOperationResult - File downloaded to: $tempFile (Size: " . filesize($tempFile) . ")");
+                $this->processBulkData($operation, $tempFile, $reportId, $operation['operation_type']);
+                
+                // Cleanup
+                unlink($tempFile);
+                error_log("ReportBuilderService::processBulkOperationResult - Temporary file unlinked.");
             } else {
                 error_log("ReportBuilderService::processBulkOperationResult - Failed to download file data");
             }
@@ -1052,21 +1067,10 @@ class ReportBuilderService
     private function processBulkData($operation, $fileData, $reportId = null, $dataset = 'orders')
     {
         $dataset = trim((string)$dataset);
-        error_log("ReportBuilderService::processBulkData - Starting with " . strlen($fileData) . " bytes, Dataset: $dataset");
         
-        // Parser Logic Robustness
-        $lines = [];
-        if (is_array($fileData)) {
-            error_log("ReportBuilderService::processBulkData - WARNING: fileData is Array! Treating as pre-parsed lines.");
-            $lines = $fileData;
-        } else {
-            // Standard NDJSON string
-            $lines = explode("\n", trim((string)$fileData));
-        }
-        
-        // DEBUG: Save raw strings - ALL LINES to see complete data
-        // file_put_contents(__DIR__ . '/../../debug_bulk_raw.txt', is_string($fileData) ? $fileData : print_r($fileData, true));
-        error_log("ReportBuilderService::processBulkData - Processing " . count($lines) . " lines.");
+        $isFilePath = (is_string($fileData) && file_exists($fileData));
+        $sizeInfo = $isFilePath ? filesize($fileData) . " bytes (file)" : strlen(is_string($fileData) ? $fileData : '') . " bytes (string)";
+        error_log("ReportBuilderService::processBulkData - Starting with $sizeInfo, Dataset: $dataset");
 
         // FEATURE FIX: Pending Fulfillments should show ALL open orders regardless of date range.
         if ($dataset === 'pending_fulfillment_by_variant' || $dataset === 'total_inventory_summary' || $dataset === 'sales_by_product') {
@@ -1092,7 +1096,8 @@ class ReportBuilderService
         
         error_log("processBulkData - Starting. Dataset: {$dataset}, ReportID: {$reportId}");
         
-        foreach ($lines as $line) {
+        $iterator = $this->getBulkLines($fileData);
+        foreach ($iterator as $line) {
             $decoded = null;
             if (is_array($line)) {
                 $decoded = $line;
@@ -1119,6 +1124,17 @@ class ReportBuilderService
                 // FIX: Aggregate Line Items for sales_by_channel
                 if ($dataset === 'sales_by_channel') {
                      if (isset($parentsMap[$parentId])) {
+                         // Fix: Normalize if connection object
+                         if (isset($parentsMap[$parentId]['lineItems']) && isset($parentsMap[$parentId]['lineItems']['edges'])) {
+                              $existing = [];
+                              if (!empty($parentsMap[$parentId]['lineItems']['edges'])) {
+                                   foreach ($parentsMap[$parentId]['lineItems']['edges'] as $e) {
+                                       if (isset($e['node'])) $existing[] = $e['node'];
+                                   }
+                              }
+                              $parentsMap[$parentId]['lineItems'] = $existing;
+                         }
+
                          if (!isset($parentsMap[$parentId]['lineItems'])) $parentsMap[$parentId]['lineItems'] = [];
                          $parentsMap[$parentId]['lineItems'][] = $decoded;
                      } else {
@@ -1496,12 +1512,34 @@ class ReportBuilderService
                         } elseif (in_array($dataset, ['sales_summary', 'sales_by_product', 'sales_by_customer', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku'])) {
                              // Aggregate Line Items into Order
                              if (isset($decoded['quantity'])) {
+                                 // Fix: Convert connection object to array if needed
+                                 if (isset($parentsMap[$parentId]['lineItems']) && isset($parentsMap[$parentId]['lineItems']['edges'])) {
+                                      $existing = [];
+                                      if (!empty($parentsMap[$parentId]['lineItems']['edges'])) {
+                                           foreach ($parentsMap[$parentId]['lineItems']['edges'] as $e) {
+                                               if (isset($e['node'])) $existing[] = $e['node'];
+                                           }
+                                      }
+                                      $parentsMap[$parentId]['lineItems'] = $existing;
+                                 }
+
                                  if (!isset($parentsMap[$parentId]['lineItems'])) {
                                      $parentsMap[$parentId]['lineItems'] = [];
                                  }
                                  $parentsMap[$parentId]['lineItems'][] = $decoded;
                              } elseif (isset($decoded['refundLineItems'])) {
-                                 // Connection inside list fallback (if we find another way to fetch them or if some arrive as orphans)
+                                 // Connection inside list fallback
+                                 // Fix: Convert connection object to array if needed
+                                 if (isset($parentsMap[$parentId]['refunds']) && isset($parentsMap[$parentId]['refunds']['edges'])) {
+                                      $existing = [];
+                                      // Logic for refunds is trickier as they are a list of objects, not a connection usually?
+                                      // But if we encounter 'edges', we flatten.
+                                      // Actually 'refunds' is usually a List. But if 'refundLineItems' is the child, it implies we are aggregating INTO a Refund?
+                                      // No, 'refunds' in Order is a list of Refund objects.
+                                      // We are appending a Refund object here.
+                                      // So just ensure it is an array.
+                                 }
+
                                  if (!isset($parentsMap[$parentId]['refunds'])) {
                                      $parentsMap[$parentId]['refunds'] = [];
                                  }
@@ -1600,11 +1638,29 @@ class ReportBuilderService
                                  } elseif (in_array(trim($dataset), ['sales_by_customer', 'sales_by_product', 'sales_by_channel', 'sales_summary', 'monthly_sales', 'monthly_sales_channel', 'monthly_sales_pos_location', 'monthly_sales_pos_user', 'monthly_sales_product', 'monthly_sales_product_type', 'monthly_sales_product_variant', 'monthly_sales_shipping', 'monthly_sales_vendor', 'monthly_sales_sku'])) {
                                      // Aggregate Line Items into Order
                                      if (isset($child['quantity'])) {
+                                         // Fix: Convert connection object to array if needed
+                                         if (isset($parentsMap[$id]['lineItems']) && isset($parentsMap[$id]['lineItems']['edges'])) {
+                                              $existing = [];
+                                              if (!empty($parentsMap[$id]['lineItems']['edges'])) {
+                                                   foreach ($parentsMap[$id]['lineItems']['edges'] as $e) {
+                                                       if (isset($e['node'])) $existing[] = $e['node'];
+                                                   }
+                                              }
+                                              $parentsMap[$id]['lineItems'] = $existing;
+                                         }
+                                         
                                          if (!isset($parentsMap[$id]['lineItems'])) {
                                              $parentsMap[$id]['lineItems'] = [];
                                          }
                                          $parentsMap[$id]['lineItems'][] = $child;
                                      } elseif (isset($child['refundLineItems'])) {
+                                         // Fix: Convert connection object to array if needed
+                                         if (isset($parentsMap[$id]['refunds']) && isset($parentsMap[$id]['refunds']['edges'])) {
+                                              $existing = [];
+                                              // Flatten if needed - although refunds are usually a List, not Connection in this context.
+                                              // But safe to check.
+                                         }
+
                                          if (!isset($parentsMap[$id]['refunds'])) {
                                              $parentsMap[$id]['refunds'] = [];
                                          }
@@ -3954,17 +4010,17 @@ class ReportBuilderService
              }
          }
 
-        return "{ orders(first: 250, sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name email createdAt displayFinancialStatus displayFulfillmentStatus app { name } discountCodes customer { firstName lastName email displayName } shippingAddress { country province firstName lastName } billingAddress { country province firstName lastName } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType vendor } inventoryItem { unitCost { amount } } } discountAllocations { allocatedAmountSet { shopMoney { amount } } discountApplication { ... on DiscountCodeApplication { code } ... on ManualDiscountApplication { title } ... on ScriptDiscountApplication { title } } } } } } } } } }";
+        return "{ orders(sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name email createdAt displayFinancialStatus displayFulfillmentStatus app { name } discountCodes customer { firstName lastName email displayName } shippingAddress { country province firstName lastName } billingAddress { country province firstName lastName } totalPriceSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalRefundedSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id quantity title name sku originalUnitPriceSet { shopMoney { amount } } variant { title price sku product { title productType vendor } inventoryItem { unitCost { amount } } } discountAllocations { allocatedAmountSet { shopMoney { amount } } discountApplication { ... on DiscountCodeApplication { code } ... on ManualDiscountApplication { title } ... on ScriptDiscountApplication { title } } } } } } } } } }";
     }
 
     private function buildAovTimeQuery($filters, $columns, $groupBy, $aggregations)
     {
-        return "{ orders(first: 250, query: \"status:any\") { edges { node { id createdAt totalPriceSet { shopMoney { amount } } lineItems(first: 250) { edges { node { title variant { product { productType } } } } } } } } }";
+        return "{ orders(query: \"status:any\") { edges { node { id createdAt totalPriceSet { shopMoney { amount } } lineItems(first: 250) { edges { node { title variant { product { productType } } } } } } } } }";
     }
 
     private function buildBrowserShareQuery($filters, $columns, $groupBy, $aggregations)
     {
-        return "{ orders(first: 250, query: \"status:any\") { edges { node { id customerJourneySummary { lastVisit { source browser } } } } } }";
+        return "{ orders(query: \"status:any\") { edges { node { id customerJourneySummary { lastVisit { source browser } } } } } }";
     }
     private function buildSearchQuery($filters, $allowedFields = [])
     {
@@ -4114,7 +4170,7 @@ class ReportBuilderService
          // Bulk API Safe Query: No connections inside lists.
          // We fetch Order Totals (for proration) and Line Items (for details).
          
-         $query = "{ orders(first: 250, sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { ";
+         $query = "{ orders(sortKey: CREATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { ";
          $query .= "id name createdAt email displayFinancialStatus displayFulfillmentStatus ";
          $query .= "subtotalPriceSet { shopMoney { amount } } ";
          $query .= "totalDiscountsSet { shopMoney { amount } } ";
@@ -4151,7 +4207,7 @@ class ReportBuilderService
          
          // Fetch Refunds and LineItems (Note: refundLineItems cannot be nested in refunds list per Bulk API constraints)
          // Sort by UPDATED_AT to catch recent refunds on older orders
-         return "{ orders(first: 250, sortKey: UPDATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } customer { firstName lastName displayName email } note refunds { note createdAt } totalRefundedSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id title quantity variant { title sku price } originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } } } } } } } }";
+         return "{ orders(sortKey: UPDATED_AT, reverse: true, query: \"{$searchQuery}\") { edges { node { id name createdAt displayFinancialStatus displayFulfillmentStatus app { name } customer { firstName lastName displayName email } note refunds { note createdAt } totalRefundedSet { shopMoney { amount currencyCode } } totalTaxSet { shopMoney { amount } } totalShippingPriceSet { shopMoney { amount } } totalPriceSet { shopMoney { amount } } totalDiscountsSet { shopMoney { amount } } subtotalPriceSet { shopMoney { amount } } lineItems(first: 250) { edges { node { id title quantity variant { title sku price } originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } } } } } } } }";
     }
     
     /**
@@ -4190,4 +4246,25 @@ class ReportBuilderService
         // Default icon for unknown channels
         return 'https://cdn.shopify.com/s/files/1/0757/9955/files/default-channel-icon.svg';
     }
-}
+
+    private function getBulkLines($input)
+    {
+        if (is_array($input)) {
+            foreach ($input as $line) yield $line;
+            return;
+        }
+
+        if (is_string($input) && file_exists($input)) {
+            $handle = fopen($input, 'r');
+            while (($line = fgets($handle)) !== false) {
+                yield $line;
+            }
+            fclose($handle);
+            return;
+        }
+
+        // Fallback for string
+        $lines = explode("\n", trim((string)$input));
+        foreach ($lines as $line) yield $line;
+    }
+}                                               

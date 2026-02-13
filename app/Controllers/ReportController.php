@@ -1044,7 +1044,7 @@ class ReportController extends Controller
             // Accept date range from GET or POST so filters work when Run report is used with a date range
             $startDate = $_GET['start_date'] ?? $input['start_date'] ?? null;
             $endDate = $_GET['end_date'] ?? $input['end_date'] ?? null;
-            if ($startDate !== null && $endDate !== null && !$isPendingFulfillmentReport && !$isSalesByProductReport && empty($runtimeConfig['filters'])) {
+            if ($startDate !== null && $endDate !== null && !$isPendingFulfillmentReport && empty($runtimeConfig['filters'])) {
                 error_log("ReportController::run - Converting date params: start={$startDate}, end={$endDate}");
                 $runtimeConfig['filters'] = [
                     [
